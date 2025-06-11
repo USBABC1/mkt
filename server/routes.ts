@@ -239,24 +239,7 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     apiRouter.delete('/funnels/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteFunnel(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch (e) { next(e); }});
     apiRouter.get('/metrics/campaign/:campaignId', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getMetricsForCampaign(parseInt(req.params.campaignId), req.user!.id)); } catch(e){ next(e); }});
     apiRouter.get('/copies', async (req: AuthenticatedRequest, res, next) => { try { const { campaignId, phase, purpose, search } = req.query; res.json(await storage.getCopies(req.user!.id, campaignId ? Number(campaignId) : undefined, phase as string, purpose as string, search as string)); } catch (e) { next(e); } });
-    
-    // ROTA /api/copies AJUSTADA
-    apiRouter.post('/copies', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
-        try {
-            // Valida os dados que vêm do cliente, omitindo o userId que será adicionado pelo servidor
-            const clientDataSchema = schemaShared.insertCopySchema.omit({ userId: true });
-            const clientData = clientDataSchema.parse(req.body);
-            
-            // Adiciona o userId do usuário autenticado e então salva no banco
-            const completeData = { ...clientData, userId: req.user!.id };
-            const newCopy = await storage.createCopy(completeData);
-            
-            res.status(201).json(newCopy);
-        } catch (e) {
-            next(e);
-        }
-    });
-
+    apiRouter.post('/copies', async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertCopySchema.parse(req.body); res.status(201).json(await storage.createCopy({ ...data, userId: req.user!.id })); } catch (e) { next(e); } });
     apiRouter.delete('/copies/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteCopy(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch (e) { next(e); }});
     apiRouter.get('/landingpages', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getLandingPages(req.user!.id)); } catch (e) { next(e); }});
     apiRouter.post('/landingpages', async (req: AuthenticatedRequest, res, next) => { try { const lpData = schemaShared.insertLandingPageSchema.parse({ ...req.body, userId: req.user!.id }); res.status(201).json(await storage.createLandingPage(lpData)); } catch(e){ next(e); }});
@@ -277,13 +260,14 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     apiRouter.delete('/flows/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteFlow(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch(e){ next(e); }});
     apiRouter.post('/whatsapp/connect', async (req: AuthenticatedRequest, res, next) => { try { const service = getWhatsappServiceForUser(req.user!.id); await service.connectToWhatsApp(); res.status(202).json({ message: "Iniciando conexão." }); } catch(e) { next(e); }});
     apiRouter.get('/whatsapp/status', async (req: AuthenticatedRequest, res, next) => { try { const status = WhatsappConnectionService.getStatus(req.user!.id); res.json(status); } catch(e){ next(e); }});
-    apiRouter.post('/whatsapp/disconnect', async (req: AuthenticatedRequest, res, next) => { try { const service = getWhatsappServiceForUser(req.user!.id); await service.disconnectWhatsApp(); res.json({ message: "Desconexão solicitada." }); } catch(e){ next(e); }});
+    apiRouter.post('/whatsapp/disconnect', async (req: AuthenticatedRequest, res, next) => { try { const service = getWhatsappServiceForUser(req.user!.id); await service.disconnectWhatsApp(); res.json({ message: "Desconexão solicitada." }); } catch(e) { next(e); }});
     apiRouter.post('/whatsapp/reload-flow', (req, res) => res.json({ message: "Recarga solicitada." }));
-    apiRouter.get('/whatsapp/contacts', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getContacts(req.user!.id)); } catch(e){ next(e); }});
-    apiRouter.get('/whatsapp/messages', async (req: AuthenticatedRequest, res, next) => { try { const contactNumber = req.query.contactNumber as string; if(!contactNumber) return res.status(400).json({ error: "Número do contato é obrigatório."}); res.json(await storage.getMessages(req.user!.id, contactNumber)); } catch(e){ next(e); }});
+    apiRouter.get('/whatsapp/contacts', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getContacts(req.user!.id)); } catch(e) { next(e); }});
+    apiRouter.get('/whatsapp/messages', async (req: AuthenticatedRequest, res, next) => { try { const contactNumber = req.query.contactNumber as string; if(!contactNumber) return res.status(400).json({ error: "Número do contato é obrigatório."}); res.json(await storage.getMessages(req.user!.id, contactNumber)); } catch(e) { next(e); }});
     apiRouter.post('/whatsapp/messages', async (req: AuthenticatedRequest, res, next) => { try { const { contactNumber, message } = schemaShared.insertWhatsappMessageSchema.pick({contactNumber: true, message: true}).parse(req.body); const service = getWhatsappServiceForUser(req.user!.id); const fullJid = contactNumber.endsWith('@s.whatsapp.net') ? contactNumber : `${contactNumber}@s.whatsapp.net`; await service.sendMessage(fullJid, { text: message }); const savedMessage = await storage.createMessage({ contactNumber, message, direction: 'outgoing', userId: req.user!.id }); res.status(201).json(savedMessage); } catch (e) { next(e); } });
     apiRouter.post('/mcp/converse', async (req: AuthenticatedRequest, res, next) => { try { const { message, sessionId, attachmentUrl } = req.body; const payload = await handleMCPConversation(req.user!.id, message, sessionId, attachmentUrl); res.json(payload); } catch(e) { next(e); }});
     
+    // ✅ NOVO ENDPOINT PARA UPLOAD DE ANEXOS DO MCP
     apiRouter.post('/mcp/upload-attachment', mcpAttachmentUpload.single('attachment'), (req: AuthenticatedRequest, res, next) => {
         try {
             if (!req.file) {
