@@ -77,8 +77,21 @@ export const insertCopySchema = createInsertSchema(copies, {
   platform: z.string().optional().nullable(),
   isFavorite: z.boolean().optional().default(false),
   tags: z.array(z.string()).optional().nullable().default([]),
+  // ✅ CORREÇÃO: Lógica de pré-processamento do campaignId melhorada para ser mais robusta.
   campaignId: z.preprocess(
-    (val) => (val === undefined || val === null || val === "" || String(val).toUpperCase() === "NONE" ? null : parseInt(String(val))),
+    (val) => {
+      if (val === undefined || val === null || val === "" || String(val).toUpperCase() === "NONE") {
+        return null;
+      }
+      if (typeof val === 'string') {
+        const parsed = parseInt(val, 10);
+        return isNaN(parsed) ? null : parsed;
+      }
+      if (typeof val === 'number') {
+        return val;
+      }
+      return null;
+    },
     z.number().int().positive().nullable().optional()
   ),
 }).omit({ id: true, createdAt: true, lastUpdatedAt: true });
