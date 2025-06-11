@@ -151,7 +151,6 @@ export type CampaignPhase = z.infer<typeof selectCampaignPhaseSchema>; export ty
 export type CampaignTask = z.infer<typeof selectCampaignTaskSchema>; export type InsertCampaignTask = z.infer<typeof insertCampaignTaskSchema>;
 export type FullCampaignData = Campaign & { phases: (CampaignPhase & { tasks: (CampaignTask & { assignee: Pick<User, 'id' | 'username'> | null; })[]; })[]; };
 
-
 // --- CONFIGURAÇÕES DE COPY ---
 export const allCopyPurposesConfig: CopyPurposeConfig[] = [
 ];
