@@ -25,8 +25,8 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription as DialogDescriptionComponent } from '@/components/ui/dialog';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"; // FormDescription adicionado aqui
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'; // Para o modal de ideias
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"; // Para o rhfBaseForm
 
 // Ícones LUCIDE-REACT REAIS
 import {
@@ -74,7 +74,7 @@ import {
 } from '@/config/copyConfigurations';
 import { Campaign as CampaignType } from '@shared/schema';
 
-// Schema para o formulário base
+// Schema para o formulário base (definido localmente ou importado de copyConfigurations.ts)
 const baseGeneratorFormSchema = z.object({
   product: z.string().min(3, "Produto/Serviço deve ter pelo menos 3 caracteres."),
   audience: z.string().min(3, "Público-Alvo deve ter pelo menos 3 caracteres."),
@@ -82,7 +82,7 @@ const baseGeneratorFormSchema = z.object({
   tone: z.enum(['professional', 'casual', 'urgent', 'inspirational', 'educational', 'empathetic', 'divertido', 'sofisticado']),
 });
 
-// Opções para Selects
+// Opções para Selects (definidas localmente ou importadas de copyConfigurations.ts)
 const objectiveOptions: Array<{ value: BaseGeneratorFormState['objective']; label: string }> = [
     { value: 'sales', label: 'Gerar Vendas' }, { value: 'leads', label: 'Gerar Leads' },
     { value: 'engagement', label: 'Aumentar Engajamento' }, { value: 'awareness', label: 'Criar Reconhecimento' }
@@ -235,9 +235,9 @@ export default function CopyPage() {
       baseInfo: currentBaseFormValues,
       platform: copyItem.platformSuggestion,
       fullGeneratedResponse: { mainCopy: copyItem.mainCopy, alternativeVariation1: copyItem.alternativeVariation1, alternativeVariation2: copyItem.alternativeVariation2, platformSuggestion: copyItem.platformSuggestion, notes: copyItem.notes },
-      campaignId: selectedCampaignId,
-      isFavorite: false,
-      tags: [],
+      campaignId: selectedCampaignId, // Adicionado aqui
+      isFavorite: false, // Default
+      tags: [], // Default
     };
     saveCopyMutation.mutate(dataToSave);
   };
@@ -288,7 +288,7 @@ export default function CopyPage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 items-start">
-        <Card className="lg:col-span-2 shadow-lg rounded-xl"> 
+        <Card className="lg:col-span-2 shadow-lg rounded-xl">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center text-xl"><Bot className="mr-2 text-primary" />Configurar Geração</CardTitle>
             <CardDescription>Preencha os campos para que a IA crie a copy ideal para sua necessidade.</CardDescription>
@@ -509,7 +509,7 @@ export default function CopyPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center text-lg"><Lightbulb className="mr-2 text-yellow-400"/>Ideias de Conteúdo Geradas</DialogTitle>
-            <DialogDescriptionComponent className="text-xs">Use como inspiração para seus próximos posts ou copies.</DialogDescriptionComponent>
+            <DialogDescription className="text-xs">Use como inspiração para seus próximos posts ou copies.</DialogDescription>
           </DialogHeader>
           <div className="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
             {generateContentIdeasMutation.isPending && <div className="text-center py-4"><Loader2 className="w-6 h-6 text-primary mx-auto animate-spin" /> Gerando ideias...</div>}
