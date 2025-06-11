@@ -52,6 +52,7 @@ import {
   CalendarDays,
   ExternalLink,
   AlertTriangle,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 // Hooks e Utils do SEU projeto
@@ -71,11 +72,7 @@ import {
   type DisplayGeneratedCopy,
   type SavedCopy,
 } from '@/config/copyConfigurations';
-
-// Schemas da IA (definidos localmente ou importados de copyConfigurations.ts)
-const aiResponseSchema = { type: "OBJECT", properties: { mainCopy: { type: "STRING" }, alternativeVariation1: { type: "STRING" }, alternativeVariation2: { type: "STRING" }, platformSuggestion: { type: "STRING" }, notes: { type: "STRING" } }, required: ["mainCopy", "platformSuggestion"] };
-const contentIdeasResponseSchema = { type: "OBJECT", properties: { contentIdeas: { type: "ARRAY", items: { "type": "STRING" } } }, required: ["contentIdeas"] };
-const optimizeCopyResponseSchema = { type: "OBJECT", properties: { optimizedCopy: { type: "STRING" }, optimizationNotes: { type: "STRING" } }, required: ["optimizedCopy"] };
+import { Campaign as CampaignType } from '@shared/schema';
 
 // Schema para o formulário base (definido localmente ou importado de copyConfigurations.ts)
 const baseGeneratorFormSchema = z.object({
@@ -108,6 +105,7 @@ export default function CopyPage() {
   const [selectedCopyPurposeKey, setSelectedCopyPurposeKey] = useState<string>('');
   const [specificPurposeData, setSpecificPurposeData] = useState<SpecificPurposeData>({});
   const [generatedCopies, setGeneratedCopies] = useState<DisplayGeneratedCopy[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLaunchPhase, setFilterLaunchPhase] = useState<LaunchPhase | 'all'>('all');
@@ -119,6 +117,11 @@ export default function CopyPage() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  
+  const { data: campaignsList = [] } = useQuery<CampaignType[]>({
+    queryKey: ['campaignsListForCopy'],
+    queryFn: async () => apiRequest('GET', '/api/campaigns').then(res => res.json())
+  });
 
   useEffect(() => {
     setSelectedCopyPurposeKey('');
@@ -155,52 +158,13 @@ export default function CopyPage() {
   });
 
   const generateSpecificCopyMutation = useMutation<BackendGeneratedCopyItem[], Error, FullGeneratorPayload>({
-    mutationFn: async (payload) => { 
-        const currentPurposeConfig = allCopyPurposesConfig.find(p => p.key === payload.copyPurposeKey);
-        if (!currentPurposeConfig) throw new Error("Configuração da finalidade da copy não encontrada.");
-        const launchPhaseLabel = payload.launchPhase === 'pre_launch' ? 'Pré-Lançamento' : payload.launchPhase === 'launch' ? 'Lançamento' : 'Pós-Lançamento';
-        let prompt = `Contexto da IA: Você é um Copywriter Mestre, especialista em criar textos persuasivos e altamente eficazes para lançamentos digitais no mercado brasileiro. Sua linguagem deve ser adaptada ao tom solicitado.
----
-INFORMAÇÕES BASE PARA ESTA COPY:
-- Produto/Serviço Principal: "${payload.product}"
-- Público-Alvo Principal: "${payload.audience}"
-- Objetivo Geral da Campanha: "${payload.objective}"
-- Tom da Mensagem Desejado: "${payload.tone}"
-- Fase Atual do Lançamento: "${launchPhaseLabel}"
----
-FINALIDADE ESPECÍFICA DESTA COPY:
-- Nome da Finalidade: "${currentPurposeConfig.label}"
-- Categoria: "${currentPurposeConfig.category}"
-${currentPurposeConfig.description ? `- Descrição da Finalidade: "${currentPurposeConfig.description}"\n` : ''}---
-DETALHES ESPECÍFICOS FORNECIDOS PARA ESTA FINALIDADE:
-${Object.entries(payload.details).map(([key, value]) => {
-  const fieldConfig = currentPurposeConfig.fields.find(f => f.name === key);
-  return `- ${fieldConfig?.label || key}: ${value || '(Não informado)'}`;
-}).join('\n')}
----
-TAREFA:
-Com base em TODAS as informações acima, gere os seguintes textos para a finalidade "${currentPurposeConfig.label}".
-Responda OBRIGATORIAMENTE em formato JSON VÁLIDO, seguindo o schema abaixo.
-Observações importantes para sua geração:
-- Incorpore os "Detalhes Específicos" de forma inteligente e natural na "mainCopy".
-- Se um detalhe crucial não foi informado, use seu conhecimento para criar a melhor copy possível.
-- Seja direto, claro e use gatilhos mentais apropriados.
-- Para anúncios, pense em limite de caracteres.
-- Para e-mails, estruture com parágrafos curtos e CTA claro.`;
-        if (currentPurposeConfig.promptEnhancer) prompt = currentPurposeConfig.promptEnhancer(prompt, payload.details, payload);
-        let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-        const apiPayloadToGemini = { contents: chatHistory, generationConfig: { responseMimeType: "application/json", responseSchema: aiResponseSchema }};
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) throw new Error("Chave da API Gemini não configurada no frontend.");
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(apiPayloadToGemini) });
-        if (!response.ok) { const errorData = await response.json().catch(() => ({error: {message: `Erro ${response.status} na API Gemini.`}})); throw new Error(`Erro da IA: ${errorData?.error?.message || response.statusText}`); }
-        const result = await response.json();
-        if (result.candidates?.[0]?.content?.parts?.[0]) {
-            const generatedData = JSON.parse(result.candidates[0].content.parts[0].text) as BackendGeneratedCopyItem;
-            return [generatedData]; 
+    mutationFn: async (payload) => {
+        const response = await apiRequest('POST', '/api/ai/generate-copy', payload);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido do servidor de IA.' }));
+            throw new Error(errorData.error || `Erro ${response.status} ao gerar copy.`);
         }
-        throw new Error("Resposta inesperada da API Gemini.");
+        return response.json();
     },
     onSuccess: (data) => { 
       if (!Array.isArray(data) || data.length === 0) { toast({ title: 'Nenhuma copy gerada', description: 'A IA não retornou sugestões.', variant: 'default' }); setGeneratedCopies([]); return; }
@@ -213,36 +177,17 @@ Observações importantes para sua geração:
 
   const generateContentIdeasMutation = useMutation<string[], Error, { product: string; audience: string; objective: string }>({
     mutationFn: async (payload) => {
-      const prompt = `Dado o produto "${payload.product}" e o público-alvo "${payload.audience}", gere uma lista de 5 ideias concisas para posts de blog ou redes sociais que seriam relevantes e engajadoras para este público, focando no objetivo de "${payload.objective}". Retorne as ideias como um array de strings em JSON.`;
-      let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-      const apiPayloadToGemini = { contents: chatHistory, generationConfig: { responseMimeType: "application/json", responseSchema: contentIdeasResponseSchema }};
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave da API Gemini não configurada.");
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-      const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(apiPayloadToGemini) });
-      if (!response.ok) { const errorData = await response.json().catch(() => ({error: {message: 'Erro API Gemini'}})); throw new Error(`Erro da IA: ${errorData?.error?.message || response.statusText}`); }
-      const result = await response.json();
-      if (result.candidates?.[0]?.content?.parts?.[0]) { const parsedResult = JSON.parse(result.candidates[0].content.parts[0].text); return parsedResult.contentIdeas || []; }
-      throw new Error("Resposta inesperada da IA para ideias de conteúdo.");
+      toast({ title: 'Em desenvolvimento', description: 'A geração de ideias de conteúdo será implementada no backend.'});
+      return ["Ideia de conteúdo 1 (mock)", "Ideia de conteúdo 2 (mock)"];
     },
-    onSuccess: (data) => { setContentIdeas(data); setIsContentIdeasModalOpen(true); toast({ title: 'Ideias de Conteúdo Geradas!' }); },
+    onSuccess: (data) => { setContentIdeas(data); setIsContentIdeasModalOpen(true); },
     onError: (error: Error) => { toast({ title: 'Erro ao Gerar Ideias', description: error.message, variant: 'destructive' }); },
   });
 
   const optimizeCopyMutation = useMutation<{ optimizedCopy: string; optimizationNotes?: string }, Error, { originalCopy: string; purposeKey: string; baseForm: BaseGeneratorFormState; copyIndex: number } >({
     mutationFn: async (payload) => {
-      const purposeConfig = allCopyPurposesConfig.find(p => p.key === payload.purposeKey);
-      const prompt = `Analise e otimize a seguinte copy, originalmente criada para a finalidade de "${purposeConfig?.label || 'desconhecida'}" com o objetivo de "${payload.baseForm.objective}" e tom "${payload.baseForm.tone}". A copy é: '${payload.originalCopy}'. Retorne uma versão otimizada e, opcionalmente, uma breve nota sobre as mudanças feitas. Responda em JSON com os campos "optimizedCopy" (string) e "optimizationNotes" (string, opcional).`;
-      let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-      const apiPayloadToGemini = { contents: chatHistory, generationConfig: { responseMimeType: "application/json", responseSchema: optimizeCopyResponseSchema }};
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave da API Gemini não configurada.");
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-      const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(apiPayloadToGemini) });
-      if (!response.ok) { const errorData = await response.json().catch(() => ({error: {message: 'Erro API Gemini'}})); throw new Error(`Erro da IA: ${errorData?.error?.message || response.statusText}`); }
-      const result = await response.json();
-      if (result.candidates?.[0]?.content?.parts?.[0]) { return JSON.parse(result.candidates[0].content.parts[0].text); }
-      throw new Error("Resposta inesperada da IA para otimização.");
+        toast({ title: 'Em desenvolvimento', description: 'A otimização de copy será implementada no backend.'});
+        return { optimizedCopy: `${payload.originalCopy} - Otimizada!`, optimizationNotes: "Texto ajustado para maior clareza." };
     },
     onSuccess: (data, variables) => {
       setGeneratedCopies(prevCopies => prevCopies.map((copy, index) => index === variables.copyIndex ? { ...copy, mainCopy: data.optimizedCopy, notes: `${copy.notes || ''}\nNota Otim.: ${data.optimizationNotes || 'Otimizada.'}`.trim() } : copy ));
@@ -252,7 +197,7 @@ Observações importantes para sua geração:
     onError: (error: Error) => { toast({ title: 'Erro ao Otimizar', description: error.message, variant: 'destructive' }); setOptimizingCopy(null); },
   });
   
-  const saveCopyMutation = useMutation<SavedCopy, Error, Omit<SavedCopy, 'id' | 'createdAt' | 'lastUpdatedAt'>>({ 
+  const saveCopyMutation = useMutation<SavedCopy, Error, Omit<SavedCopy, 'id' | 'createdAt' | 'lastUpdatedAt' | 'userId'>>({ 
     mutationFn: async (dataToSave) => { const response = await apiRequest('POST', '/api/copies', dataToSave); if (!response.ok) { const err = await response.json().catch(() => ({})); throw new Error(err.error || 'Falha ao salvar'); } return response.json(); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['savedCopies', filterLaunchPhase, filterCopyPurpose, searchTerm] }); toast({ title: 'Copy Salva!' }); },
     onError: (error: Error) => { toast({ title: 'Erro ao Salvar', description: error.message, variant: 'destructive' }); }
@@ -281,13 +226,26 @@ Observações importantes para sua geração:
     const currentBaseFormValues = rhfBaseForm.getValues();
     const purposeConfig = allCopyPurposesConfig.find(p => p.key === copyItem.purposeKey);
     const title = `[${purposeConfig?.label || 'Copy'}] ${currentBaseFormValues.product.substring(0,20)} (${new Date().toLocaleDateString('pt-BR')})`;
-    const dataToSave: Omit<SavedCopy, 'id' | 'createdAt' | 'lastUpdatedAt'> = { title, content: copyItem.mainCopy, purposeKey: copyItem.purposeKey, launchPhase: selectedLaunchPhase as LaunchPhase, details: specificPurposeData, baseInfo: currentBaseFormValues, platform: copyItem.platformSuggestion, fullGeneratedResponse: { mainCopy: copyItem.mainCopy, alternativeVariation1: copyItem.alternativeVariation1, alternativeVariation2: copyItem.alternativeVariation2, platformSuggestion: copyItem.platformSuggestion, notes: copyItem.notes }};
+    const dataToSave: Omit<SavedCopy, 'id' | 'createdAt' | 'lastUpdatedAt' | 'userId'> = {
+      title,
+      content: copyItem.mainCopy,
+      purposeKey: copyItem.purposeKey,
+      launchPhase: selectedLaunchPhase as LaunchPhase,
+      details: specificPurposeData,
+      baseInfo: currentBaseFormValues,
+      platform: copyItem.platformSuggestion,
+      fullGeneratedResponse: { mainCopy: copyItem.mainCopy, alternativeVariation1: copyItem.alternativeVariation1, alternativeVariation2: copyItem.alternativeVariation2, platformSuggestion: copyItem.platformSuggestion, notes: copyItem.notes },
+      campaignId: selectedCampaignId, // Adicionado aqui
+      isFavorite: false, // Default
+      tags: [], // Default
+    };
     saveCopyMutation.mutate(dataToSave);
   };
 
   const handleReuseSavedCopy = (savedCopy: SavedCopy) => { 
     rhfBaseForm.reset(savedCopy.baseInfo); 
     setSelectedLaunchPhase(savedCopy.launchPhase);
+    setSelectedCampaignId(savedCopy.campaignId || null);
     setTimeout(() => { 
         setSelectedCopyPurposeKey(savedCopy.purposeKey); 
         setSpecificPurposeData(savedCopy.details || {}); 
@@ -318,7 +276,6 @@ Observações importantes para sua geração:
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 sm:space-y-8 bg-background text-foreground min-h-screen">
-      {/* Estilo global para scrollbar, se necessário, pode ser movido para index.css */}
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: hsl(var(--muted) / 0.2); border-radius: 4px; }
@@ -331,7 +288,7 @@ Observações importantes para sua geração:
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 items-start">
-        <Card className="lg:col-span-2 shadow-lg rounded-xl"> {/* Estilo padrão shadcn/ui */}
+        <Card className="lg:col-span-2 shadow-lg rounded-xl">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center text-xl"><Bot className="mr-2 text-primary" />Configurar Geração</CardTitle>
             <CardDescription>Preencha os campos para que a IA crie a copy ideal para sua necessidade.</CardDescription>
@@ -350,6 +307,26 @@ Observações importantes para sua geração:
                         <FormField control={rhfBaseForm.control} name="audience" render={({ field }) => (<FormItem><FormLabel>Público-Alvo Geral*</FormLabel><FormControl><Input placeholder="Ex: Empresas SaaS B2B" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={rhfBaseForm.control} name="objective" render={({ field }) => (<FormItem><FormLabel>Objetivo Geral da Marca</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{objectiveOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         <FormField control={rhfBaseForm.control} name="tone" render={({ field }) => (<FormItem><FormLabel>Tom de Voz Geral</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{toneOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        <FormItem className="md:col-span-2">
+                            <FormLabel>Associar a uma Campanha (Opcional)</FormLabel>
+                            <Select
+                                value={selectedCampaignId === null ? 'NONE' : String(selectedCampaignId)}
+                                onValueChange={(value) => setSelectedCampaignId(value === 'NONE' ? null : Number(value))}
+                            >
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione uma campanha..."/>
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="NONE">Nenhuma campanha</SelectItem>
+                                    {campaignsList.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormDescription className="text-xs">
+                                Vincule esta copy a uma campanha existente para melhor organização.
+                            </FormDescription>
+                        </FormItem>
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -435,7 +412,7 @@ Observações importantes para sua geração:
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-1 sticky top-6 shadow-lg rounded-xl"> {/* Estilo padrão */}
+        <Card className="lg:col-span-1 sticky top-6 shadow-lg rounded-xl">
             <CardHeader className="border-b">
                 <CardTitle className="flex items-center text-xl"><Sparkles className="mr-2 text-primary"/>Copies Geradas</CardTitle>
                 <CardDescription>Resultados da IA para sua finalidade.</CardDescription>
@@ -475,7 +452,7 @@ Observações importantes para sua geração:
         </Card>
       </div>
 
-      <Card className="shadow-lg rounded-xl"> {/* Estilo padrão */}
+      <Card className="shadow-lg rounded-xl">
         <CardHeader className="border-b flex-wrap gap-3 md:flex-nowrap md:items-center md:justify-between"> 
             <CardTitle className="flex items-center text-xl"><FileText className="mr-2 text-primary"/> Biblioteca de Copies Salvas</CardTitle> 
             <div className="flex flex-col sm:flex-row items-stretch gap-3 w-full md:w-auto"> 
@@ -529,7 +506,7 @@ Observações importantes para sua geração:
       </Card>
 
       <Dialog open={isContentIdeasModalOpen} onOpenChange={setIsContentIdeasModalOpen}>
-        <DialogContent className="sm:max-w-md"> {/* Estilo padrão shadcn/ui */}
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center text-lg"><Lightbulb className="mr-2 text-yellow-400"/>Ideias de Conteúdo Geradas</DialogTitle>
             <DialogDescription className="text-xs">Use como inspiração para seus próximos posts ou copies.</DialogDescription>
