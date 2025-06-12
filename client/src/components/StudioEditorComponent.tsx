@@ -1,8 +1,7 @@
 // client/src/components/StudioEditorComponent.tsx
 import React, { useEffect, useRef } from 'react';
-import grapesjs, { Editor, EditorConfig } from 'grapesjs';
-import 'grapesjs/dist/css/grapes.min.css';
-import grapesjsPresetWebpage from 'grapesjs-preset-webpage';
+import GrapesJSStudioSDK, { StudioConfig } from '@grapesjs/studio-sdk';
+import { pluginForms, pluginCustomCode, pluginExport, pluginTooltip, pluginAvatars } from '@grapesjs/studio-sdk-plugins';
 import { LandingPage, InsertLandingPage } from '@shared/schema';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
@@ -19,30 +18,28 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const editorRef = useRef<HTMLDivElement>(null);
-  const editorInstance = useRef<Editor | null>(null);
+  const studioInstanceRef = useRef<any>(null);
 
   const saveLpMutation = useMutation({
     mutationFn: async (data: { grapesJsData: any }) => {
-      // ✅ CORREÇÃO: Garante que estamos criando ou atualizando a LP correta
-      const isEditing = !!initialData?.id;
-      const endpoint = isEditing ? `/api/landingpages/${initialData.id}` : '/api/landingpages';
-      const method = isEditing ? 'PUT' : 'POST';
+        const isEditing = !!initialData?.id;
+        const endpoint = isEditing ? `/api/landingpages/${initialData.id}` : '/api/landingpages';
+        const method = isEditing ? 'PUT' : 'POST';
 
-      const payload: Partial<InsertLandingPage> = {
-        name: editorInstance.current?.getProjectData()?.name || initialData?.name || 'Nova Página',
-        slug: editorInstance.current?.getProjectData()?.slug || initialData?.slug || `pagina-${Date.now()}`,
-        grapesJsData: data.grapesJsData,
-      };
+        const name = editorInstanceRef.current?.getProject()?.get('name') || initialData?.name || 'Nova Página';
+        const slug = editorInstanceRef.current?.getProject()?.get('slug') || initialData?.slug || `pagina-${Date.now()}`;
+        
+        const payload: Partial<InsertLandingPage> = { name, slug, grapesJsData: data.grapesJsData, status: 'draft' };
 
-      const response = await apiRequest(method, endpoint, payload);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Falha ao salvar a landing page.');
-      }
-      return response.json();
+        const response = await apiRequest(method, endpoint, payload);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Falha ao salvar a landing page.');
+        }
+        return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso!", description: "Landing page salva." });
+      toast({ title: "Sucesso!", description: "Landing page salva com sucesso." });
       queryClient.invalidateQueries({ queryKey: ['landingPages'] });
       onBack();
     },
@@ -52,86 +49,44 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
   });
 
   useEffect(() => {
-    if (editorRef.current && !editorInstance.current) {
-      const editorConfig: EditorConfig = {
+    if (editorRef.current && !studioInstanceRef.current) {
+      const config: StudioConfig = {
         container: editorRef.current,
-        fromElement: false,
-        height: 'calc(100vh - 70px)',
-        width: 'auto',
-        storageManager: false, // Desativa o storage local padrão para controle manual.
-        assetManager: {
-            upload: '/api/assets/lp-upload',
-            assets: [],
-            uploadName: 'files',
-        },
-        canvas: {
-          // ✅ CORREÇÃO: Carrega o Tailwind via CDN no canvas do editor
-          scripts: ['https://cdn.tailwindcss.com'],
-        },
-        plugins: [grapesjsPresetWebpage],
-        pluginsOpts: {
-          [grapesjsPresetWebpage as any]: {},
-        },
-      };
-
-      const editor = grapesjs.init(editorConfig);
-      
-      // Carrega dados iniciais, se existirem
-      if (initialData?.grapesJsData) {
-        try {
+        // ✅ CORREÇÃO: Adicionando plugins para uma experiência mais rica.
+        plugins: [pluginForms, pluginCustomCode, pluginExport, pluginTooltip, pluginAvatars],
+        project: initialData?.id ? {
+          id: String(initialData.id),
           // @ts-ignore
-          editor.loadProjectData(initialData.grapesJsData);
-        } catch (e) {
-            console.error("Falha ao carregar dados do projeto, carregando HTML puro.", e);
-            // @ts-ignore
-            if (initialData.grapesJsData?.html) editor.setComponents(initialData.grapesJsData.html);
+          main: initialData.grapesJsData,
+        } : {
+          name: 'Nova Landing Page',
+          template: '@grapesjs/template-blank',
+        },
+        onSave: (data) => {
+          saveLpMutation.mutate({ grapesJsData: data.project.main });
+        },
+        getBackLink: () => {
+          const backLink = document.createElement('button');
+          backLink.className = 'absolute top-3 left-3 z-10 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2';
+          backLink.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left mr-2 h-4 w-4"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Voltar`;
+          backLink.onclick = onBack;
+          return backLink;
         }
-      } else {
-        editor.setComponents(`
-          <div class="p-5 text-center">
-            <h1 class="text-4xl font-bold">Construa sua Landing Page Incrível</h1>
-            <p class="text-gray-500 mt-2">Arraste os blocos do painel à direita para começar a criar.</p>
-          </div>
-        `);
-      }
+      };
       
-      editorInstance.current = editor;
+      studioInstanceRef.current = new (GrapesJSStudioSDK as any)(config);
     }
-
     return () => {
-      if (editorInstance.current) {
-        editorInstance.current.destroy();
-        editorInstance.current = null;
+      if (studioInstanceRef.current) {
+        studioInstanceRef.current.destroy();
+        studioInstanceRef.current = null;
       }
     };
-  }, []); // A dependência vazia garante que o editor inicialize apenas uma vez.
-
-  const handleSave = () => {
-    if (!editorInstance.current) {
-        toast({ title: "Erro", description: "O editor não foi inicializado.", variant: "destructive"});
-        return;
-    }
-    const projectData = editorInstance.current.getProjectData();
-    saveLpMutation.mutate({ grapesJsData: projectData });
-  };
+  }, [initialData, onBack, saveLpMutation]);
 
   return (
     <div className="h-screen w-full flex flex-col bg-background">
-        <div className="flex items-center justify-between p-2 bg-card border-b z-10 flex-shrink-0">
-            <Button variant="ghost" onClick={onBack}>
-                <ArrowLeft className="mr-2 h-4 w-4"/>
-                Voltar para a Lista
-            </Button>
-            <div className="text-center">
-                <h3 className="font-semibold">{initialData?.name || 'Nova Landing Page'}</h3>
-                <p className="text-xs text-muted-foreground">/{initialData?.slug || 'novo-slug'}</p>
-            </div>
-            <Button onClick={handleSave} disabled={saveLpMutation.isPending}>
-              {saveLpMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
-              Salvar
-            </Button>
-        </div>
-        <div ref={editorRef} style={{ flexGrow: 1 }} className="grapesjs-editor"/>
+      <div ref={editorRef} style={{ flexGrow: 1 }} />
     </div>
   );
 };
