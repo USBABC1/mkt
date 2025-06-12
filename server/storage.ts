@@ -7,6 +7,17 @@ import { z } from 'zod';
 
 export class DatabaseStorage {
 
+  // ✅ NOVO: Gera um slug único para garantir que não haja conflitos no banco
+  async generateUniqueSlug(baseSlug: string): Promise<string> {
+    let slug = baseSlug;
+    let counter = 1;
+    while (await this.getLandingPageBySlug(slug)) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    return slug;
+  }
+
   // --- Usuários e Autenticação ---
   async getUser(id: number): Promise<schema.User | undefined> {
     const result = await db.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
@@ -300,7 +311,6 @@ export class DatabaseStorage {
     const [lp] = await db.select().from(schema.landingPages).where(and(eq(schema.landingPages.studioProjectId, studioProjectId), eq(schema.landingPages.userId, userId))).limit(1);
     return lp;
   }
-  // ✅ CORREÇÃO: Função agora aceita o userId e o injeta no objeto de inserção.
   async createLandingPage(lpData: schema.InsertLandingPage, userId: number): Promise<schema.LandingPage> {
     const [newLP] = await db.insert(schema.landingPages).values({ ...lpData, userId }).returning();
     if (!newLP) throw new Error("Falha ao criar landing page.");
