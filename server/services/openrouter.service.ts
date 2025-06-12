@@ -15,22 +15,31 @@ class OpenRouterService {
     }
   }
 
-  public async createLandingPageFromPrompt(prompt: string, modelName: string = 'meta-llama/llama-3-8b-instruct'): Promise<string> {
+  public async createLandingPageFromPrompt(prompt: string, modelName: string = 'anthropic/claude-3-haiku'): Promise<string> {
     if (!this.openRouterApiKey) {
       throw new Error('A API Key da OpenRouter não está configurada no servidor.');
     }
 
     const systemPrompt = `
-      Você é um desenvolvedor frontend expert, especializado em criar landing pages de alta conversão.
-      Sua tarefa é gerar o código para uma landing page completa baseada na solicitação do usuário.
+      Você é um desenvolvedor frontend expert e designer de UI/UX, especializado em criar landing pages de altíssima conversão usando Tailwind CSS.
+      Sua tarefa é gerar o código para uma landing page completa, moderna e visualmente atraente, baseada na solicitação do usuário.
 
-      REGRAS DE SAÍDA:
+      PALETA DE CORES SUGERIDA (use como base):
+      - Background: #0A0A0A (Quase preto)
+      - Foreground/Text: #F1F1F1 (Branco suave)
+      - Primary/Accent: #38BDF8 (Azul claro vibrante)
+      - Secondary/Muted: #1E1E1E (Cinza muito escuro)
+      - Card/Panel: #141414 (Cinza escuro)
+
+      REGRAS DE ESTRUTURA E ESTILO:
       - Responda APENAS com o código HTML. Nenhum texto, explicação ou comentário fora do código.
       - O código deve ser um arquivo HTML completo, começando com <!DOCTYPE html> e terminando com </html>.
-      - Utilize CSS embarcado em uma tag <style> dentro do <head>. NÃO use CSS inline nos elementos.
-      - Use o framework Tailwind CSS para estilização SIEMPRE QUE POSSÍVEL, importando-o via CDN no <head>.
-      - O design deve ser moderno, limpo e responsivo.
-      - Inclua placeholders de imagem (ex: https://via.placeholder.com/800x400) se o usuário não fornecer imagens.
+      - **Sempre** inclua o script do Tailwind CSS via CDN no <head>: <script src="https://cdn.tailwindcss.com"></script>.
+      - Use CSS embarcado em uma tag <style> dentro do <head> APENAS para fontes customizadas ou animações complexas. TODO o resto da estilização deve ser feito com classes do Tailwind CSS diretamente nos elementos HTML.
+      - O design deve ser moderno, limpo, responsivo e com bom espaçamento. Use seções distintas para cada parte da página.
+      - ESTRUTURA SUGERIDA: Header (com logo), Seção Herói (com título forte e CTA), Seção de Benefícios/Recursos, Seção de Prova Social (Depoimentos), Seção de CTA Final e Footer.
+      - Use imagens de placeholder do serviço 'https://placehold.co/' (ex: https://placehold.co/800x400).
+      - Utilize ícones (SVG embutido) da biblioteca Lucide Icons (https://lucide.dev/) para enriquecer a UI onde for apropriado.
     `;
 
     try {
@@ -55,6 +64,7 @@ class OpenRouterService {
 
       let htmlContent = response.data.choices[0].message.content;
 
+      // Limpa qualquer texto ou markdown que a IA possa ter adicionado antes do HTML
       const htmlMatch = htmlContent.match(/<!DOCTYPE html>.*<\/html>/is);
       if (htmlMatch) {
         htmlContent = htmlMatch[0];
