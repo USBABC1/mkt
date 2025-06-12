@@ -117,7 +117,6 @@
     --text-neon-glow-primary: none;
   }
 
-  * { @apply border-border; }
   body {
     @apply bg-background text-foreground font-sans antialiased transition-colors duration-300;
     font-family: 'Montserrat', sans-serif;
