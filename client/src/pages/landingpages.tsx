@@ -46,7 +46,7 @@ export default function LandingPages() {
   const previewMutation = useMutation({
     mutationFn: async (data: { prompt: string; reference?: string }) => {
       const response = await apiRequest('POST', '/api/landingpages/preview-from-prompt', data);
-      return response.json(); // ✅ CORREÇÃO: Assegura que o JSON seja extraído da resposta
+      return response.json();
     },
     onSuccess: (data: { htmlContent: string }) => {
       setPreviewHtml(data.htmlContent);
@@ -59,7 +59,7 @@ export default function LandingPages() {
 
   const saveAndEditMutation = useMutation({
     mutationFn: (data: { name: string; campaignId: number | null; grapesJsData: { html: string; css: string } }) =>
-      apiRequest('POST', '/api/landingpages', data).then(res => res.json()), // ✅ CORREÇÃO: Adicionado .then() que faltava
+      apiRequest('POST', '/api/landingpages', data).then(res => res.json()),
     onSuccess: (savedLp: LpType) => {
       toast({ title: "Página Salva!", description: "Redirecionando para o editor..." });
       queryClient.invalidateQueries({ queryKey: ['landingPages'] });
@@ -138,7 +138,7 @@ export default function LandingPages() {
                 </div>
             )}
             {!previewMutation.isPending && previewHtml && (
-                <iframe srcDoc={previewHtml} title="Preview da Landing Page" className="w-full h-full border-0" sandbox="allow-scripts allow-same-origin"/>
+                <iframe srcDoc={previewHtml} title="Preview da Landing Page" className="w-full h-full border-0" sandbox="allow-scripts"/>
             )}
             {!previewMutation.isPending && !previewHtml && (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
