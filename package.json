@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.15.0",
-    "@grapesjs/studio": "^1.0.4",
     "@grapesjs/studio-sdk": "^1.0.48",
     "@grapesjs/studio-sdk-plugins": "^1.0.23",
     "@hookform/resolvers": "^3.10.0",
