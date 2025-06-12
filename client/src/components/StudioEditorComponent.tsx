@@ -2,12 +2,23 @@
 import React, { useEffect, useRef } from 'react';
 import GrapesJSStudioSDK, { StudioConfig } from '@grapesjs/studio-sdk';
 import '@grapesjs/studio-sdk/dist/style.css';
-// ✅ CORREÇÃO: Importando cada plugin individualmente para que o Vite os encontre.
-import pluginForms from '@grapesjs/studio-sdk-plugins/forms';
-import pluginCustomCode from '@grapesjs/studio-sdk-plugins/custom-code';
-import pluginExport from '@grapesjs/studio-sdk-plugins/export';
-import pluginTooltip from '@grapesjs/studio-sdk-plugins/tooltip';
-import pluginAvatars from '@grapesjs/studio-sdk-plugins/avatars';
+
+// Option 1: Try importing from the main plugins package
+import { 
+  pluginForms,
+  pluginCustomCode,
+  pluginExport,
+  pluginTooltip,
+  pluginAvatars
+} from '@grapesjs/studio-sdk-plugins';
+
+// Option 2: If Option 1 doesn't work, try these individual imports
+// import pluginForms from '@grapesjs/studio-sdk-plugins/dist/forms';
+// import pluginCustomCode from '@grapesjs/studio-sdk-plugins/dist/custom-code';
+// import pluginExport from '@grapesjs/studio-sdk-plugins/dist/export';
+// import pluginTooltip from '@grapesjs/studio-sdk-plugins/dist/tooltip';
+// import pluginAvatars from '@grapesjs/studio-sdk-plugins/dist/avatars';
+
 import { LandingPage, InsertLandingPage } from '@shared/schema';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
