@@ -118,8 +118,14 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased transition-colors duration-300;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     font-family: 'Montserrat', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition-property: color, background-color;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
     font-feature-settings: "rlig" 1, "calt" 1;
     background-size: cover;
     background-position: center;
@@ -127,7 +133,10 @@
     background-attachment: fixed;
   }
   html, body { height: 100%; padding: 0; margin: 0; }
-  * { box-sizing: border-box; }
+  * { 
+    box-sizing: border-box; 
+    border-color: hsl(var(--border));
+  }
   *:focus-visible { @apply outline-none ring-2 ring-offset-2 ring-ring ring-offset-background; }
 }
 
