@@ -8,7 +8,7 @@ export default defineConfig(({ command, mode }) => {
   const plugins = [
     react(),
   ];
-
+  
   if (mode !== "production" && process.env.REPL_ID) {
     import("@replit/vite-plugin-cartographer")
       .then(module => {
@@ -22,7 +22,7 @@ export default defineConfig(({ command, mode }) => {
   }
   
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
+  
   return {
     plugins: plugins,
     define: {
@@ -42,15 +42,14 @@ export default defineConfig(({ command, mode }) => {
     root: path.resolve(__dirname, "client"),
     build: {
       outDir: path.resolve(__dirname, "dist/public"),
-      emptyOutDir: true, 
+      emptyOutDir: true,
+      // Remove the external configuration - let Vite handle bundling
       rollupOptions: {
-        // ✅ CORREÇÃO DEFINITIVA: Externaliza os pacotes para que o Vite não tente empacotá-los.
-        external: ['@grapesjs/studio-sdk', '@grapesjs/studio-sdk-plugins'],
         output: {
-          globals: {
-            // Mapeia os imports para as variáveis globais que os scripts do CDN criam.
-            '@grapesjs/studio-sdk': 'GrapesJSStudioSDK',
-            '@grapesjs/studio-sdk-plugins': 'GrapesJSStudioPlugins',
+          manualChunks: {
+            // Split large dependencies into separate chunks
+            'grapesjs': ['@grapesjs/studio-sdk'],
+            'grapesjs-plugins': ['@grapesjs/studio-sdk-plugins'],
           }
         }
       },
@@ -63,6 +62,13 @@ export default defineConfig(({ command, mode }) => {
         'work-1-cixzsejsspdqlyvw.prod-runtime.all-hands.dev',
         'work-2-cixzsejsspdqlyvw.prod-runtime.all-hands.dev',
         '.all-hands.dev', '.prod-runtime.all-hands.dev'
+      ],
+    },
+    // Help Vite handle the GrapesJS packages
+    optimizeDeps: {
+      include: [
+        '@grapesjs/studio-sdk',
+        '@grapesjs/studio-sdk-plugins'
       ],
     },
   };
