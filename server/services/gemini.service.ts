@@ -75,6 +75,7 @@ class GeminiService {
     return schemes[scheme as keyof typeof schemes] || schemes.dark;
   }
 
+  // ✅ CORREÇÃO: Acentos graves (backticks) foram "escapados" com uma barra invertida (\`)
   private getAdvancedSystemPrompt(options: LandingPageOptions): string {
     const colors = this.getColorScheme(options.colorScheme || 'dark');
     
@@ -93,7 +94,7 @@ class GeminiService {
       - Código deve ser 100% funcional e renderizável imediatamente
 
       ✅ **ESTRUTURA HTML5 SEMÂNTICA COMPLETA**:
-      ```html
+      \`\`\`html
       <!DOCTYPE html>
       <html lang="pt-BR">
       <head>
@@ -133,7 +134,7 @@ class GeminiService {
           }
         </script>
       </head>
-      ```
+      \`\`\`
 
       ═══════════════════════════════════════════════════════════════
       🎨 ESPECIFICAÇÕES VISUAIS PREMIUM
