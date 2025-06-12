@@ -1,13 +1,16 @@
 // client/src/components/StudioEditorComponent.tsx
 import React, { useEffect, useRef } from 'react';
 import GrapesJSStudioSDK, { StudioConfig } from '@grapesjs/studio-sdk';
-import { pluginForms, pluginCustomCode, pluginExport, pluginTooltip, pluginAvatars } from '@grapesjs/studio-sdk-plugins';
+// ✅ CORREÇÃO: Importando cada plugin individualmente para resolver o erro de build.
+import pluginForms from '@grapesjs/studio-sdk-plugins/forms';
+import pluginCustomCode from '@grapesjs/studio-sdk-plugins/custom-code';
+import pluginExport from '@grapesjs/studio-sdk-plugins/export';
+import pluginTooltip from '@grapesjs/studio-sdk-plugins/tooltip';
+import pluginAvatars from '@grapesjs/studio-sdk-plugins/avatars';
 import { LandingPage, InsertLandingPage } from '@shared/schema';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-import { Button } from './ui/button';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
 
 interface StudioEditorComponentProps {
   initialData: LandingPage | null;
@@ -26,8 +29,8 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
         const endpoint = isEditing ? `/api/landingpages/${initialData.id}` : '/api/landingpages';
         const method = isEditing ? 'PUT' : 'POST';
 
-        const name = editorInstanceRef.current?.getProject()?.get('name') || initialData?.name || 'Nova Página';
-        const slug = editorInstanceRef.current?.getProject()?.get('slug') || initialData?.slug || `pagina-${Date.now()}`;
+        const name = studioInstanceRef.current?.getProject()?.get('name') || initialData?.name || 'Nova Página';
+        const slug = studioInstanceRef.current?.getProject()?.get('slug') || initialData?.slug || `pagina-${Date.now()}`;
         
         const payload: Partial<InsertLandingPage> = { name, slug, grapesJsData: data.grapesJsData, status: 'draft' };
 
@@ -52,7 +55,6 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
     if (editorRef.current && !studioInstanceRef.current) {
       const config: StudioConfig = {
         container: editorRef.current,
-        // ✅ CORREÇÃO: Adicionando plugins para uma experiência mais rica.
         plugins: [pluginForms, pluginCustomCode, pluginExport, pluginTooltip, pluginAvatars],
         project: initialData?.id ? {
           id: String(initialData.id),
