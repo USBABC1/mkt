@@ -10,7 +10,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { JWT_SECRET, UPLOADS_PATH, APP_BASE_URL, GOOGLE_CLIENT_ID } from './config';
 import { handleMCPConversation } from "./mcp_handler";
 import { googleDriveService } from './services/google-drive.service';
-import { openRouterService } from './services/openrouter.service';
+import { geminiService } from './services/gemini.service'; // Removido openRouter, adicionado gemini
 import { setupMulter } from "./multer.config";
 import { WhatsappConnectionService } from "./services/whatsapp-connection.service";
 import path from "path";
@@ -165,30 +165,29 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
 
     // Rota de Landing Pages
     apiRouter.get('/landingpages', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getLandingPages(req.user!.id)); } catch (e) { next(e); }});
-    apiRouter.post('/landingpages', async (req: AuthenticatedRequest, res, next) => { try { const { grapesJsData, ...otherData } = req.body; const lpData = schemaShared.insertLandingPageSchema.parse({ ...otherData, userId: req.user!.id, grapesJsData: grapesJsData || {} }); if (lpData.slug) { const existingSlug = await storage.getLandingPageBySlug(lpData.slug); if (existingSlug) return res.status(409).json({ error: "Este slug já está em uso." }); } res.status(201).json(await storage.createLandingPage(lpData, req.user!.id)); } catch(e){ next(e); }});
-    
-    // ✅ CORREÇÃO APLICADA AQUI
-    apiRouter.post('/landingpages/generate-from-prompt', async (req: AuthenticatedRequest, res, next) => { 
-        try { 
-            const { prompt, name, slug } = req.body;
-            if (!prompt || !name || !slug) {
-                return res.status(400).json({ error: 'Prompt, nome e slug são obrigatórios.' });
-            }
-            // Verifica se o slug já existe antes de prosseguir
-            const existingSlug = await storage.getLandingPageBySlug(slug);
-            if (existingSlug) {
-                return res.status(409).json({ error: "Este slug já está em uso. Por favor, escolha outro." });
-            }
-            const generatedHtml = await openRouterService.createLandingPageFromPrompt(prompt); 
-            const lpData = schemaShared.insertLandingPageSchema.parse({ name, slug, status: 'draft', grapesJsData: { html: generatedHtml, css: '' } }); 
-            const newLandingPage = await storage.createLandingPage(lpData, req.user!.id); 
-            res.status(201).json(newLandingPage); 
-        } catch (e) { 
-            next(e); 
-        } 
+    apiRouter.post('/landingpages', async (req: AuthenticatedRequest, res, next) => { 
+      try { 
+        const { name, grapesJsData } = req.body;
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const finalSlug = await storage.generateUniqueSlug(slug);
+        const lpData = schemaShared.insertLandingPageSchema.parse({ ...req.body, slug: finalSlug, grapesJsData: grapesJsData || {} }); 
+        res.status(201).json(await storage.createLandingPage(lpData, req.user!.id));
+      } catch(e){ 
+        next(e); 
+      }
     });
-
-    apiRouter.post('/landingpages/preview-from-prompt', async (req: AuthenticatedRequest, res, next) => { try { const { prompt } = req.body; if (!prompt) return res.status(400).json({ error: 'O prompt é obrigatório.' }); const generatedHtml = await openRouterService.createLandingPageFromPrompt(prompt); res.status(200).json({ htmlContent: generatedHtml }); } catch (e) { next(e); } });
+    
+    apiRouter.post('/landingpages/preview-from-prompt', async (req: AuthenticatedRequest, res, next) => {
+        try {
+            const { prompt, reference } = req.body;
+            if (!prompt) return res.status(400).json({ error: 'O prompt é obrigatório.' });
+            const generatedHtml = await geminiService.createLandingPageFromPrompt(prompt, reference);
+            res.status(200).json({ htmlContent: generatedHtml });
+        } catch (e) {
+            next(e);
+        }
+    });
+    
     apiRouter.get('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { const lp = await storage.getLandingPage(parseInt(req.params.id), req.user!.id); if (!lp) return res.status(404).json({ error: 'Página não encontrada.' }); res.json(lp); } catch (e) { next(e); } });
     apiRouter.put('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { const lpData = schemaShared.insertLandingPageSchema.partial().parse(req.body); const updated = await storage.updateLandingPage(parseInt(req.params.id), lpData, req.user!.id); if (!updated) return res.status(404).json({ error: "Página não encontrada." }); res.json(updated); } catch(e){ next(e); }});
     apiRouter.delete('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteLandingPage(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch(e){ next(e); }});
