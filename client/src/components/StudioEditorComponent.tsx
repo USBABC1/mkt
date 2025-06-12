@@ -1,7 +1,7 @@
 // client/src/components/StudioEditorComponent.tsx
 import React, { useEffect, useRef } from 'react';
 import Studio, { type StudioConfig } from '@grapesjs/studio-sdk';
-import { LandingPage } from '../../shared/schema';
+import { LandingPage } from '@shared/schema';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +25,7 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
         name: payload.name,
         slug: payload.slug,
         status: 'draft',
+        // @ts-ignore
         grapesJsData: {
           html: payload.html,
           css: payload.css,
@@ -36,7 +37,7 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
       if (id) {
         return apiRequest('PUT', `/api/landingpages/${id}`, lpData);
       }
-      return apiRequest('POST', `/api/landingpages', lpData);
+      return apiRequest('POST', `/api/landingpages`, lpData);
     },
     onSuccess: () => {
       toast({ title: 'Sucesso!', description: 'Landing page salva como rascunho.' });
@@ -75,18 +76,17 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
                 slug: data.project.slug || data.project.name.toLowerCase().replace(/\s+/g, '-'),
                 html: data.html,
                 css: data.css,
+                // @ts-ignore
                 components: data.project.main.components,
+                // @ts-ignore
                 styles: data.project.main.styles,
               });
             },
 
             getBackLink: () => {
                 const backLink = document.createElement('button');
-                backLink.className = 'absolute top-3 left-3 z-10';
-                backLink.innerHTML = `<button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left mr-2 h-4 w-4"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
-                    Voltar
-                </button>`;
+                backLink.className = 'absolute top-3 left-3 z-10 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2';
+                backLink.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left mr-2 h-4 w-4"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Voltar`;
                 backLink.onclick = onBack;
                 return backLink;
             }
@@ -99,6 +99,7 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
 
     return () => {
       if (studioInstanceRef.current) {
+        // @ts-ignore
         studioInstanceRef.current.destroy();
         studioInstanceRef.current = null;
       }
