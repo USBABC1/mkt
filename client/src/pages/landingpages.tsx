@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
-import { LandingPage as LpType } from '@shared/schema';
+import { LandingPage as LpType, InsertLandingPage } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -33,9 +33,6 @@ export default function LandingPages() {
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
   const [generateFormData, setGenerateFormData] = useState<GenerateLpFormData>({ name: '', slug: '', prompt: '' });
   
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-
   const { data: landingPages = [], isLoading } = useQuery<LpType[]>({
     queryKey: ['landingPages'],
     queryFn: () => apiRequest('GET', '/api/landingpages').then(res => res.json())
@@ -57,26 +54,25 @@ export default function LandingPages() {
         queryClient.invalidateQueries({ queryKey: ['landingPages'] });
         setIsGenerateDialogOpen(false);
         setGenerateFormData({ name: '', slug: '', prompt: '' });
-        // Abre o editor com a nova LP gerada
         handleOpenStudio(newLp);
     },
     onError: (error: any) => toast({ title: "Erro ao criar LP com IA", description: error.message, variant: "destructive" }),
   });
 
-
   const handleOpenStudio = (lp: LpType | null) => {
     // Para uma nova LP, criamos um objeto temporário
-    const lpData = lp || {
-        id: null,
-        name: 'Nova Landing Page',
-        slug: `pagina-${Date.now()}`,
-        status: 'draft',
-        grapesJsData: null,
-        userId: 0, // Será definido no backend
-        createdAt: new Date(),
-        updatedAt: new Date(),
-    };
-    setEditingLp(lpData as LpType);
+    if (!lp) {
+        const newLpData = {
+            id: undefined, // Sem ID para uma nova LP
+            name: 'Nova Landing Page',
+            slug: `pagina-${Date.now()}`,
+            status: 'draft',
+            grapesJsData: null,
+        } as unknown as LpType;
+        setEditingLp(newLpData);
+    } else {
+        setEditingLp(lp);
+    }
     setShowStudioEditor(true);
   };
   
@@ -97,7 +93,6 @@ export default function LandingPages() {
     }
     createFromIaMutation.mutate(generateFormData);
   };
-
 
   if (showStudioEditor) {
     return <StudioEditorComponent initialData={editingLp} onBack={() => setShowStudioEditor(false)} />;
@@ -138,7 +133,7 @@ export default function LandingPages() {
                 <CardDescription>/{lp.slug}</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
-                <p className="text-sm text-muted-foreground">Atualizada em: {format(new Date(lp.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+                <p className="text-sm text-muted-foreground">Atualizada em: {lp.updatedAt ? format(new Date(lp.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'N/A'}</p>
               </CardContent>
               <CardFooter className="flex justify-between">
                 <Button variant="outline" size="sm" onClick={() => handleOpenStudio(lp)}>
