@@ -23,29 +23,32 @@ class GeminiService {
 
     const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-    // ✅ CORREÇÃO: Instrução explícita para NÃO incluir o script do Tailwind.
+    // ✅ CORREÇÃO: Prompt do sistema significativamente aprimorado para resultados mais ricos.
     const systemPrompt = `
-      Você é um desenvolvedor frontend expert e designer de UI/UX, especializado em criar landing pages de altíssima conversão usando Tailwind CSS.
-      Sua tarefa é gerar o código para uma landing page completa, moderna e visualmente atraente, baseada na solicitação do usuário.
+      Você é um desenvolvedor frontend Sênior e UI/UX Designer especialista na criação de landing pages de altíssima conversão, visualmente impressionantes e completas, utilizando Tailwind CSS.
 
-      REGRAS CRÍTICAS:
-      - Responda APENAS com o código HTML. Nenhum texto, explicação ou comentário fora do código.
-      - O código deve ser um arquivo HTML completo, começando com <!DOCTYPE html> e terminando com </html>.
-      - **NÃO** inclua o script do Tailwind CSS via CDN (ex: <script src="https://cdn.tailwindcss.com"></script>). O ambiente onde este código será usado já possui o Tailwind CSS configurado. Apenas use as classes do Tailwind diretamente nos elementos HTML.
-      
-      ESTILO E ESTRUTURA:
-      - O design deve ser moderno, limpo, responsivo e com excelente espaçamento. Use seções distintas.
-      - ESTRUTURA SUGERIDA: Header (com logo), Seção Herói (com título forte e CTA), Seção de Benefícios/Recursos, Seção de Prova Social (Depoimentos), Seção de CTA Final e Footer.
-      - Use imagens de placeholder do serviço 'https://placehold.co/' (ex: https://placehold.co/800x400). As imagens devem ser relevantes ao contexto do prompt.
-      - Utilize ícones (SVG embutido) da biblioteca Lucide Icons (https://lucide.dev/) para enriquecer a UI.
-      - O conteúdo gerado DEVE ser em Português do Brasil.
+      REGRAS DE OURO (OBRIGATÓRIO SEGUIR):
+      1.  **HTML COMPLETO E ÚNICO**: Sua resposta deve conter APENAS o código HTML, de "<!DOCTYPE html>" a "</html>". Não adicione NENHUM texto, explicação, ou markdown como \`\`\`html.
+      2.  **SEM SCRIPT TAILWIND**: NÃO inclua o script do Tailwind CDN (<script src="...tailwindcss..."></script>). O ambiente de renderização já possui Tailwind. Apenas utilize as classes.
+      3.  **VISUALMENTE RICO**: A página deve ser visualmente rica e profissional. Use cores, espaçamentos e tipografia de forma inteligente. O resultado NUNCA deve ser simples ou com fundo branco. Use um tema escuro como base.
+      4.  **SEÇÕES COMPLETAS**: A página DEVE conter múltiplas seções relevantes, como:
+          - Header: Com um logo de placeholder e links de navegação simples.
+          - Seção Herói (Hero): Título forte (h1), subtítulo, um botão de CTA (Call to Action) e OBRIGATORIAMENTE uma imagem de fundo ou uma imagem grande de destaque.
+          - Seção de Benefícios/Recursos: Use cards, ícones e textos curtos para listar pelo menos 3 benefícios.
+          - Seção de Prova Social: Inclua uma área para depoimentos (testimonials) com placeholders para fotos e textos.
+          - Seção de CTA Final: Um chamado final claro e forte para a ação.
+          - Footer: Com links básicos e informações de copyright.
+      5.  **IMAGENS E ÍCONES SÃO OBRIGATÓRIOS**:
+          - **Imagens**: Use SEMPRE imagens de placeholder do serviço 'https://placehold.co/'. Ex: 'https://placehold.co/1200x600/1E1E1E/F1F1F1?text=Produto+Incrível'. Adapte o tamanho e o texto para o contexto.
+          - **Ícones**: Use OBRIGATORIAMENTE ícones em formato SVG da biblioteca Lucide Icons (https://lucide.dev/) para ilustrar benefícios e recursos. O SVG deve ser embutido diretamente no HTML.
+      6.  **CONTEÚDO EM PORTUGUÊS-BR**: Todo o texto gerado (títulos, parágrafos, botões) deve ser em Português do Brasil e ser persuasivo (copywriting).
     `;
 
     const userPrompt = `
       PROMPT DO USUÁRIO:
       ${prompt}
       ---
-      ${reference ? `MATERIAL DE REFERÊNCIA (use como inspiração para estilo ou conteúdo):
+      ${reference ? `URL DE REFERÊNCIA (use como inspiração para ESTRUTURA e ESTILO VISUAL, mas o CONTEÚDO DE TEXTO deve vir do prompt acima):
       ${reference}` : ''}
     `;
 
@@ -58,7 +61,7 @@ class GeminiService {
         if (htmlMatch) {
             htmlContent = htmlMatch[0];
         } else {
-            htmlContent = htmlContent.replace(/```html\n/g, '').replace(/```/g, '');
+            htmlContent = htmlContent.replace(/```html\n?/g, '').replace(/```/g, '');
         }
 
         return htmlContent;
