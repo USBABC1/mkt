@@ -1,11 +1,6 @@
 // client/src/components/StudioEditorComponent.tsx
 import React, { useEffect, useRef } from 'react';
-import GrapesJSStudioSDK, { StudioConfig } from '@grapesjs/studio-sdk';
-import '@grapesjs/studio-sdk/dist/style.css';
-
-// Try importing the entire plugins package
-import * as StudioPlugins from '@grapesjs/studio-sdk-plugins';
-
+// Importações do GrapesJS removidas, pois agora são carregadas globalmente.
 import { LandingPage, InsertLandingPage } from '@shared/schema';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
@@ -14,6 +9,14 @@ import { useToast } from '@/hooks/use-toast';
 interface StudioEditorComponentProps {
   initialData: LandingPage | null;
   onBack: () => void;
+}
+
+// Tipos para as bibliotecas globais (opcional, mas ajuda na clareza)
+declare global {
+    interface Window {
+        GrapesJSStudioSDK: any;
+        GrapesJSStudioPlugins: any;
+    }
 }
 
 export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorComponentProps) => {
@@ -51,28 +54,22 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
   });
 
   useEffect(() => {
-    if (editorRef.current && !studioInstanceRef.current) {
-      // Extract plugins from the imported package
-      const plugins = [
-        StudioPlugins.pluginForms || StudioPlugins.forms,
-        StudioPlugins.pluginCustomCode || StudioPlugins.customCode,
-        StudioPlugins.pluginExport || StudioPlugins.export,
-        StudioPlugins.pluginTooltip || StudioPlugins.tooltip,
-        StudioPlugins.pluginAvatars || StudioPlugins.avatars
-      ].filter(Boolean); // Remove any undefined plugins
+    if (editorRef.current && !studioInstanceRef.current && window.GrapesJSStudioSDK && window.GrapesJSStudioPlugins) {
+      // ✅ CORREÇÃO DEFINITIVA: Acessando as bibliotecas a partir do objeto 'window'
+      const GrapesJSStudioSDK = window.GrapesJSStudioSDK;
+      const { pluginForms, pluginCustomCode, pluginExport, pluginTooltip, pluginAvatars } = window.GrapesJSStudioPlugins;
 
-      const config: StudioConfig = {
+      const config = {
         container: editorRef.current,
-        plugins: plugins.length > 0 ? plugins : [], // Use empty array if no plugins found
+        plugins: [pluginForms, pluginCustomCode, pluginExport, pluginTooltip, pluginAvatars],
         project: initialData?.id ? {
           id: String(initialData.id),
-          // @ts-ignore
           main: initialData.grapesJsData,
         } : {
           name: 'Nova Landing Page',
           template: '@grapesjs/template-blank',
         },
-        onSave: (data) => {
+        onSave: (data: any) => {
           saveLpMutation.mutate({ grapesJsData: data.project.main });
         },
         getBackLink: () => {
@@ -84,7 +81,7 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
         }
       };
       
-      studioInstanceRef.current = new (GrapesJSStudioSDK as any)(config);
+      studioInstanceRef.current = new GrapesJSStudioSDK(config);
     }
     return () => {
       if (studioInstanceRef.current) {
