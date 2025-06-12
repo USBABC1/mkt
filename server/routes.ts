@@ -178,8 +178,8 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
       }
     });
     
-    // ✅ CORREÇÃO: Rota agora aceita as opções avançadas.
-    apiRouter.post('/landingpages/preview-from-prompt', async (req: AuthenticatedRequest, res, next) => {
+    // ✅ CORREÇÃO: Rota agora aceita as opções avançadas e tem o path corrigido.
+    apiRouter.post('/landingpages/preview-advanced', async (req: AuthenticatedRequest, res, next) => {
         try {
             const { prompt, reference, options } = req.body;
             if (!prompt) return res.status(400).json({ error: 'O prompt é obrigatório.' });
