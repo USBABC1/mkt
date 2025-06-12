@@ -32,26 +32,28 @@ export default defineConfig(({ command, mode }) => {
     },
     resolve: {
       alias: {
-        // ✅ CORREÇÃO: Alias explícito para resolver o problema de importação do GrapesJS
-        '@grapesjs/studio': path.resolve(__dirname, 'node_modules/@grapesjs/studio'),
-        
-        // Aliases existentes
+        // O alias explícito foi removido, pois a abordagem agora é outra.
         "@": path.resolve(__dirname, "client", "src"),
         "@shared": path.resolve(__dirname, "shared"),
         "@assets": path.resolve(__dirname, "attached_assets"), 
         "@/types": path.resolve(__dirname, "client", "src", "types"),
         "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
       },
+      // ✅ CORREÇÃO 1: Definimos os campos de entrada principais para a resolução de módulos.
+      mainFields: ['module', 'main', 'jsnext:main', 'browser'],
     },
     root: path.resolve(__dirname, "client"),
     build: {
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true, 
       rollupOptions: {},
+      // ✅ CORREÇÃO 2: Habilitamos opções para compatibilidade com CommonJS.
+      commonjsOptions: {
+        transformMixedEsModules: true,
+      }
     },
     optimizeDeps: {
       include: [
-        // Manter a otimização é uma boa prática
         '@grapesjs/studio', 
         '@grapesjs/react',
         'grapesjs',
