@@ -1,4 +1,3 @@
-// vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
@@ -10,8 +9,7 @@ export default defineConfig(({ command, mode }) => {
 
   const plugins = [
     react(),
-    // ✅ CORREÇÃO FINAL: Informamos o caminho exato para o config do Tailwind
-    tailwindcss({ config: path.resolve(__dirname, 'tailwind.config.ts') }),
+    tailwindcss(), // Não precisamos mais do caminho explícito aqui
   ];
 
   if (mode !== "production" && process.env.REPL_ID) {
@@ -42,11 +40,16 @@ export default defineConfig(({ command, mode }) => {
         "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
       },
     },
-    root: path.resolve(__dirname, "client"),
+    // A diretiva 'root' foi removida
     build: {
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true, 
-      rollupOptions: {},
+      // ✅ CORREÇÃO: Especificamos o ponto de entrada (index.html)
+      rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'client', 'index.html'),
+        },
+      },
     },
     optimizeDeps: {
       include: [
