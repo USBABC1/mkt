@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
-  "packageManager": "pnpm@10.12.1",
+  "packageManager": "npm@10.12.1",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "rm -rf dist && npx vite build && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
