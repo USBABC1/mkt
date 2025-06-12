@@ -1,3 +1,4 @@
+// shared/schema.ts
 import { pgTable, text, serial, integer, boolean, timestamp, decimal, jsonb, varchar, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -62,8 +63,9 @@ const FlowElementsSchema = z.object({ nodes: z.array(z.any()).default([]), edges
 export const insertUserSchema = createInsertSchema(users, { email: z.string().email("Email inválido."), username: z.string().min(3, "Nome de usuário deve ter pelo menos 3 caracteres."), password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres.").optional(), }).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCampaignSchema = createInsertSchema(campaigns, { name: z.string().min(1, "Nome da campanha é obrigatório."), budget: z.preprocess( (val) => (typeof val === 'string' && val.trim() !== '' ? parseFloat(val) : (typeof val === 'number' ? val : undefined)), z.number({ invalid_type_error: "Orçamento deve ser um número" }).nullable().optional() ), dailyBudget: z.preprocess( (val) => (typeof val === 'string' && val.trim() !== '' ? parseFloat(val) : (typeof val === 'number' ? val : undefined)), z.number({ invalid_type_error: "Orçamento diário deve ser um número" }).nullable().optional() ), avgTicket: z.preprocess( (val) => (typeof val === 'string' && val.trim() !== '' ? parseFloat(val) : (typeof val === 'number' ? val : undefined)), z.number({ invalid_type_error: "Ticket médio deve ser um número" }).nullable().optional() ), startDate: z.preprocess( (arg) => { if (typeof arg === "string" || arg instanceof Date) return new Date(arg); return undefined; }, z.date().optional().nullable() ), endDate: z.preprocess( (arg) => { if (typeof arg === "string" || arg instanceof Date) return new Date(arg); return undefined; }, z.date().optional().nullable() ), platforms: z.preprocess( (val) => { if (Array.isArray(val)) return val; if (typeof val === 'string') return val.split(',').map(s => s.trim()).filter(s => s); return []; }, z.array(z.string()).default([]) ), objectives: z.preprocess( (val) => { if (Array.isArray(val)) return val; if (typeof val === 'string') return val.split(',').map(s => s.trim()).filter(s => s); return []; }, z.array(z.string()).default([]) ), isTemplate: z.boolean().optional().default(false), }).omit({ id: true, createdAt: true, updatedAt: true, userId: true });
 export const insertCreativeSchema = createInsertSchema(creatives, { name: z.string().min(1, "Nome do criativo é obrigatório."), type: z.enum(creatives.type.enumValues as [string, ...string[]]), status: z.enum(creatives.status.enumValues as [string, ...string[]]).optional(), platforms: z.preprocess((val) => { if (Array.isArray(val)) { return val; } if (typeof val === 'string') { try { const parsed = JSON.parse(val); if (Array.isArray(parsed)) return parsed; } catch (e) { return val.split(',').map(s => s.trim()).filter(Boolean); } } return []; }, z.array(z.string()).optional()), fileUrl: z.string().nullable().optional(), thumbnailUrl: z.string().nullable().optional(), campaignId: z.preprocess( (val) => { if (val === "NONE" || val === null || val === undefined || val === "") { return null; } const parsed = parseInt(String(val)); return isNaN(parsed) ? null : parsed; }, z.number().int().positive().nullable().optional() ),}).omit({ id: true, createdAt: true, updatedAt: true, userId: true });
+
+// ✅ CORREÇÃO: O schema agora omite o userId, pois ele será adicionado pelo servidor.
 export const insertCopySchema = createInsertSchema(copies, {
-  userId: z.number().int().positive({ message: "ID do usuário é obrigatório e deve ser um número positivo." }),
   title: z.string().min(1, "Título da copy é obrigatório."),
   content: z.string().min(1, "Conteúdo (mainCopy) é obrigatório."),
   purposeKey: z.string().min(1, "Chave da finalidade (purposeKey) é obrigatória."),
@@ -77,7 +79,6 @@ export const insertCopySchema = createInsertSchema(copies, {
   platform: z.string().optional().nullable(),
   isFavorite: z.boolean().optional().default(false),
   tags: z.array(z.string()).optional().nullable().default([]),
-  // ✅ CORREÇÃO: Lógica de pré-processamento do campaignId melhorada para ser mais robusta.
   campaignId: z.preprocess(
     (val) => {
       if (val === undefined || val === null || val === "" || String(val).toUpperCase() === "NONE") {
@@ -94,7 +95,8 @@ export const insertCopySchema = createInsertSchema(copies, {
     },
     z.number().int().positive().nullable().optional()
   ),
-}).omit({ id: true, createdAt: true, lastUpdatedAt: true });
+}).omit({ id: true, userId: true, createdAt: true, lastUpdatedAt: true });
+
 export const insertFunnelSchema = createInsertSchema(funnels, { name: z.string().min(1, "O nome do funil é obrigatório."), description: z.string().nullable().optional(), campaignId: z.preprocess( (val) => { if (val === undefined || val === null || val === "" || String(val).toUpperCase() === "NONE") { return null; } const parsed = parseInt(String(val)); return isNaN(parsed) ? null : parsed; }, z.number().int().positive().nullable().optional() ), }).omit({ id: true, createdAt: true, updatedAt: true, userId: true });
 export const insertFunnelStageSchema = createInsertSchema(funnelStages, { name: z.string().min(1, "O nome da etapa é obrigatório."), description: z.string().nullable().optional(), order: z.number().int().min(0).default(0), config: z.record(z.any()).optional().nullable().default({}), funnelId: z.number().int().positive("ID do funil inválido."), }).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLandingPageSchema = createInsertSchema(landingPages, { name: z.string().min(1, "Nome da landing page é obrigatório."), slug: z.string().min(3, "Slug deve ter pelo menos 3 caracteres.").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug inválido."), grapesJsData: z.record(z.any()).optional().nullable(), studioProjectId: z.string().optional().nullable(), status: z.enum(landingPages.status.enumValues as [string, ...string[]]).optional(), }).omit({ id: true, createdAt: true, updatedAt: true, userId: true, publicUrl: true, publishedAt: true });
