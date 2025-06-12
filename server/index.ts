@@ -8,11 +8,11 @@ import { setupVite, serveStatic, log as serverLog } from "./vite";
 import path from 'path';
 import fs from 'fs';
 import { UPLOADS_DIR_NAME, UPLOADS_PATH } from "./config";
-import { startCronJobs } from "./services/cron.service";
+import { startCronJobs } from "./services/cron.service"; // ✅ IMPORTADO
 
 const app = express();
 
-// Garante que o diretório de uploads exista no disco persistente
+// ✅ Garantir que o diretório de uploads exista no disco persistente
 if (!fs.existsSync(UPLOADS_PATH)) {
     fs.mkdirSync(UPLOADS_PATH, { recursive: true });
     serverLog(`[ServerInit] Criado diretório de uploads em: ${UPLOADS_PATH}`, 'server-init');
@@ -21,14 +21,14 @@ if (!fs.existsSync(UPLOADS_PATH)) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// ✅ CORREÇÃO: Middleware para servir a pasta de uploads.
-// Esta linha garante que qualquer requisição para /uploads/* sirva os arquivos do seu disco.
-// Deve vir antes da configuração do 'serveStatic' para o frontend.
+// ✅ Middleware para definir o cabeçalho de política de recursos
 app.use(`/${UPLOADS_DIR_NAME}`, (req, res, next) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
-}, express.static(UPLOADS_PATH));
+});
 
+// ✅ Servir a pasta de uploads estaticamente usando o caminho absoluto
+app.use(`/${UPLOADS_DIR_NAME}`, express.static(UPLOADS_PATH));
 serverLog(`[StaticServing] Servindo uploads de usuários a partir de /${UPLOADS_DIR_NAME} mapeado para ${UPLOADS_PATH}`, 'server-init');
 
 
@@ -78,9 +78,10 @@ app.use((req, res, next) => {
       serverLog(`[StaticServing] Configurando para servir arquivos estáticos em produção...`, 'server-init');
       serveStatic(app);
     }
-    const port = process.env.PORT || 8000;
+    const port = process.env.PORT || 5000;
     server.listen({ port, host: "0.0.0.0", }, () => {
       serverLog(`Servidor HTTP iniciado e escutando na porta ${port} em modo ${process.env.NODE_ENV || 'development'}`, 'server-init');
+      // ✅ INICIA OS CRON JOBS
       startCronJobs();
     });
   } catch (error) {
