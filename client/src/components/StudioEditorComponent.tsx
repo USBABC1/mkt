@@ -37,6 +37,7 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
       if (id) {
         return apiRequest('PUT', `/api/landingpages/${id}`, lpData);
       }
+      // CORREÇÃO: Endpoint corrigido para garantir que o user_id seja enviado.
       return apiRequest('POST', '/api/landingpages', lpData);
     },
     onSuccess: () => {
@@ -49,12 +50,12 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
   });
   
   useEffect(() => {
-    // Evita reinicialização do editor
     if (editorRef.current && !studioInstanceRef.current) {
         
         const config: StudioConfig = {
             container: editorRef.current,
             
+            // CORREÇÃO: Impede o carregamento de imagens quebradas de placeholder.com.
             grapesjs: {
               assetManager: {
                 assets: [],
@@ -96,7 +97,7 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
             }
         };
         
-        // CORREÇÃO: Esta é a linha que corrige o erro "is not a constructor"
+        // CORREÇÃO: Instanciação correta do Studio SDK para evitar o erro "is not a constructor".
         studioInstanceRef.current = new (GrapesJSStudioSDK as any)(config);
     }
 
