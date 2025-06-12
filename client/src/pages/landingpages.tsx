@@ -2,11 +2,11 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
-import { LandingPage as LpType } from '../../shared/schema';
+import { LandingPage as LpType } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Trash2, Edit, Eye, Bot } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit, Eye, Bot, Loader2 as SpinnerIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -47,11 +47,36 @@ export default function LandingPages() {
       toast({ title: "Sucesso", description: "Landing page excluída." });
       queryClient.invalidateQueries({ queryKey: ['landingPages'] });
     },
-    onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+  
+  const createFromIaMutation = useMutation({
+    mutationFn: (data: { name: string, slug: string, prompt: string }) => apiRequest('POST', '/api/landingpages/generate-from-prompt', data),
+    onSuccess: (newLp: LpType) => {
+        toast({ title: "Sucesso!", description: "Landing page gerada e salva como rascunho." });
+        queryClient.invalidateQueries({ queryKey: ['landingPages'] });
+        setIsGenerateDialogOpen(false);
+        setGenerateFormData({ name: '', slug: '', prompt: '' });
+        // Abre o editor com a nova LP gerada
+        handleOpenStudio(newLp);
+    },
+    onError: (error: any) => toast({ title: "Erro ao criar LP com IA", description: error.message, variant: "destructive" }),
   });
 
+
   const handleOpenStudio = (lp: LpType | null) => {
-    setEditingLp(lp);
+    // Para uma nova LP, criamos um objeto temporário
+    const lpData = lp || {
+        id: null,
+        name: 'Nova Landing Page',
+        slug: `pagina-${Date.now()}`,
+        status: 'draft',
+        grapesJsData: null,
+        userId: 0, // Será definido no backend
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    };
+    setEditingLp(lpData as LpType);
     setShowStudioEditor(true);
   };
   
@@ -64,43 +89,15 @@ export default function LandingPages() {
     setGenerateFormData(prev => ({ ...prev, [name]: finalValue }));
   };
   
-  const handleGeneratePreview = async (e: React.FormEvent) => {
+  const handleGenerateAndOpenEditor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!generateFormData.prompt) {
-        toast({ title: "Atenção", description: "O prompt não pode estar vazio.", variant: "destructive" });
+    if (!generateFormData.prompt || !generateFormData.name || !generateFormData.slug) {
+        toast({ title: "Atenção", description: "Todos os campos são obrigatórios.", variant: "destructive" });
         return;
     }
-    setIsPreviewLoading(true);
-    try {
-        const response = await apiRequest('POST', '/api/landingpages/preview-from-prompt', { prompt: generateFormData.prompt });
-        const data = await response.json();
-        setPreviewHtml(data.htmlContent);
-    } catch (error: any) {
-        toast({ title: "Erro ao gerar preview", description: error.message, variant: "destructive" });
-    } finally {
-        setIsPreviewLoading(false);
-        setIsGenerateDialogOpen(false); 
-    }
+    createFromIaMutation.mutate(generateFormData);
   };
 
-  const saveFromPreviewMutation = useMutation({
-    mutationFn: () => {
-        if (!previewHtml) throw new Error("Não há conteúdo para salvar.");
-        return apiRequest('POST', '/api/landingpages', {
-            name: generateFormData.name,
-            slug: generateFormData.slug,
-            status: 'draft',
-            grapesJsData: { html: previewHtml, css: '' },
-        });
-    },
-    onSuccess: () => {
-        toast({ title: "Sucesso!", description: "Landing page gerada e salva como rascunho." });
-        queryClient.invalidateQueries({ queryKey: ['landingPages'] });
-        setPreviewHtml(null);
-        setGenerateFormData({ name: '', slug: '', prompt: '' });
-    },
-    onError: (error: any) => toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
-  });
 
   if (showStudioEditor) {
     return <StudioEditorComponent initialData={editingLp} onBack={() => setShowStudioEditor(false)} />;
@@ -136,7 +133,7 @@ export default function LandingPages() {
               <CardHeader>
                 <CardTitle className="flex justify-between items-start">
                   <span className="truncate pr-2">{lp.name}</span>
-                  <Badge variant={lp.status === 'published' ? 'success' : 'secondary'}>{lp.status}</Badge>
+                  <Badge variant={lp.status === 'published' ? 'default' : 'secondary'}>{lp.status}</Badge>
                 </CardTitle>
                 <CardDescription>/{lp.slug}</CardDescription>
               </CardHeader>
@@ -150,7 +147,7 @@ export default function LandingPages() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild><a href={`/lp/${lp.slug}`} target="_blank" rel="noopener noreferrer"><Eye className="mr-2 h-4 w-4" /> Ver Página</a></DropdownMenuItem>
+                    <DropdownMenuItem asChild><a href={lp.publicUrl || `/lp/${lp.slug}`} target="_blank" rel="noopener noreferrer"><Eye className="mr-2 h-4 w-4" /> Ver Página</a></DropdownMenuItem>
                     <AlertDialog>
                       <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" /> Excluir</DropdownMenuItem></AlertDialogTrigger>
                       <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle><AlertDialogDescription>Deseja realmente excluir a landing page "{lp.name}"?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => deleteMutation.mutate(lp.id)} className="bg-red-600 hover:bg-red-700">Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
@@ -165,27 +162,14 @@ export default function LandingPages() {
 
       <Dialog open={isGenerateDialogOpen} onOpenChange={setIsGenerateDialogOpen}>
           <DialogContent>
-              <DialogHeader><DialogTitle>Gerar Landing Page com IA</DialogTitle><DialogDescription>Descreva a página que você deseja. A IA criará um rascunho para você visualizar e salvar.</DialogDescription></DialogHeader>
-              <form onSubmit={handleGeneratePreview} className="grid gap-4 py-4">
-                  <div className="grid gap-2"><Label htmlFor="name">Nome da Página</Label><Input id="name" name="name" value={generateFormData.name} onChange={handleGenerateFormChange} placeholder="Ex: Ebook Gratuito de Marketing" required/></div>
-                  <div className="grid gap-2"><Label htmlFor="slug">URL (slug)</Label><Input id="slug" name="slug" value={generateFormData.slug} onChange={handleGenerateFormChange} placeholder="Ex: ebook-gratuito-mkt" required/></div>
-                  <div className="grid gap-2"><Label htmlFor="prompt">Sua Descrição (Prompt)</Label><Textarea id="prompt" name="prompt" value={generateFormData.prompt} onChange={handleGenerateFormChange} placeholder="Ex: Uma landing page para capturar leads oferecendo um ebook gratuito sobre marketing digital para iniciantes. Deve ter um título chamativo, uma imagem de capa do ebook, 3 benefícios principais e um formulário com campos para nome e email." rows={6} required/></div>
-                  <DialogFooter><Button type="submit" disabled={isPreviewLoading}>{isPreviewLoading ? 'Gerando Preview...' : 'Gerar Preview'}</Button></DialogFooter>
+              <DialogHeader><DialogTitle>Gerar Landing Page com IA</DialogTitle><DialogDescription>Descreva a página que você deseja. A IA criará um rascunho que você poderá editar e salvar.</DialogDescription></DialogHeader>
+              <form onSubmit={handleGenerateAndOpenEditor} className="grid gap-4 py-4">
+                  <div className="grid gap-2"><Label htmlFor="name">Nome da Página *</Label><Input id="name" name="name" value={generateFormData.name} onChange={handleGenerateFormChange} placeholder="Ex: Ebook Gratuito de Marketing" required/></div>
+                  <div className="grid gap-2"><Label htmlFor="slug">URL (slug) *</Label><Input id="slug" name="slug" value={generateFormData.slug} onChange={handleGenerateFormChange} placeholder="Ex: ebook-gratuito-mkt" required/></div>
+                  <div className="grid gap-2"><Label htmlFor="prompt">Sua Descrição (Prompt) *</Label><Textarea id="prompt" name="prompt" value={generateFormData.prompt} onChange={handleGenerateFormChange} placeholder="Ex: Uma landing page para capturar leads oferecendo um ebook gratuito sobre marketing digital para iniciantes. Deve ter um título chamativo, uma imagem de capa do ebook, 3 benefícios principais e um formulário com campos para nome e email." rows={6} required/></div>
+                  <DialogFooter><Button type="submit" disabled={createFromIaMutation.isPending}>{createFromIaMutation.isPending ? <><SpinnerIcon className="mr-2 h-4 w-4 animate-spin"/> Gerando...</> : 'Gerar e Abrir Editor'}</Button></DialogFooter>
               </form>
           </DialogContent>
-      </Dialog>
-
-      <Dialog open={previewHtml !== null} onOpenChange={(isOpen) => !isOpen && setPreviewHtml(null)}>
-        <DialogContent className="max-w-5xl h-[90vh] flex flex-col">
-            <DialogHeader><DialogTitle>Preview da Landing Page Gerada</DialogTitle><DialogDescription>Revise o resultado. Se gostar, clique em "Salvar" para adicioná-la aos seus rascunhos.</DialogDescription></DialogHeader>
-            <div className="flex-grow border rounded-md my-4 overflow-hidden">
-                <iframe srcDoc={previewHtml || ''} title="Preview da Landing Page" className="h-full w-full" sandbox="allow-scripts allow-same-origin"/>
-            </div>
-            <DialogFooter>
-                <Button variant="outline" onClick={() => setPreviewHtml(null)}>Descartar</Button>
-                <Button onClick={() => saveFromPreviewMutation.mutate()} disabled={saveFromPreviewMutation.isPending}>{saveFromPreviewMutation.isPending ? 'Salvando...' : 'Salvar Landing Page'}</Button>
-            </DialogFooter>
-        </DialogContent>
       </Dialog>
     </div>
   );
