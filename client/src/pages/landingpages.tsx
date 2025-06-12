@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { apiRequest } from '@/lib/api';
 import { LandingPage as LpType, InsertLandingPage, Campaign as CampaignType } from '@shared/schema';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { MoreHorizontal, Edit, Bot, Loader2, Link as LinkIcon, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { StudioEditorComponent } from '@/components/StudioEditorComponent';
@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const generateLpFormSchema = z.object({
   name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
   campaignId: z.preprocess((val) => (val === "NONE" || val === "" ? null : Number(val)), z.number().nullable().optional()),
-  reference: z.string().optional(),
+  reference: z.string().url("Por favor, insira uma URL válida.").optional().or(z.literal('')),
   prompt: z.string().min(20, "O prompt deve ter pelo menos 20 caracteres."),
 });
 
@@ -44,9 +44,10 @@ export default function LandingPages() {
   });
 
   const previewMutation = useMutation({
-    // ✅ CORREÇÃO APLICADA AQUI: Adicionado .then(res => res.json())
-    mutationFn: (data: { prompt: string; reference?: string }) => 
-      apiRequest('POST', '/api/landingpages/preview-from-prompt', data).then(res => res.json()),
+    mutationFn: async (data: { prompt: string; reference?: string }) => {
+      const response = await apiRequest('POST', '/api/landingpages/preview-from-prompt', data);
+      return response.json(); // ✅ CORREÇÃO: Assegura que o JSON seja extraído da resposta
+    },
     onSuccess: (data: { htmlContent: string }) => {
       setPreviewHtml(data.htmlContent);
       toast({ title: "Pré-visualização Gerada!", description: "Revise o resultado abaixo." });
@@ -58,7 +59,7 @@ export default function LandingPages() {
 
   const saveAndEditMutation = useMutation({
     mutationFn: (data: { name: string; campaignId: number | null; grapesJsData: { html: string; css: string } }) =>
-      apiRequest('POST', '/api/landingpages', data).then(res => res.json()),
+      apiRequest('POST', '/api/landingpages', data).then(res => res.json()), // ✅ CORREÇÃO: Adicionado .then() que faltava
     onSuccess: (savedLp: LpType) => {
       toast({ title: "Página Salva!", description: "Redirecionando para o editor..." });
       queryClient.invalidateQueries({ queryKey: ['landingPages'] });
@@ -71,7 +72,7 @@ export default function LandingPages() {
   });
 
   const onGenerateSubmit = (data: GenerateLpFormData) => {
-    setPreviewHtml(null); // Limpa o preview antigo
+    setPreviewHtml(null);
     previewMutation.mutate({ prompt: data.prompt, reference: data.reference });
   };
   
@@ -105,10 +106,10 @@ export default function LandingPages() {
           <CardContent>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onGenerateSubmit)} className="space-y-4">
-                <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Nome da Página *</FormLabel><FormControl><Input placeholder="Ex: Lançamento do Produto Y" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="campaignId" render={({ field }) => ( <FormItem><FormLabel>Associar à Campanha</FormLabel><Select onValueChange={(value) => field.onChange(value === "NONE" ? null : parseInt(value))} defaultValue={field.value === null ? "NONE" : String(field.value)}><FormControl><SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger></FormControl><SelectContent><SelectItem value="NONE">Nenhuma campanha</SelectItem>{campaigns.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="reference" render={({ field }) => ( <FormItem><FormLabel>URL de Referência (Opcional)</FormLabel><FormControl><Input placeholder="https://exemplo.com/pagina-inspiracao" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="prompt" render={({ field }) => ( <FormItem><FormLabel>Prompt Detalhado *</FormLabel><FormControl><Textarea placeholder="Descreva a estrutura, seções, conteúdo e o objetivo da sua página..." rows={8} {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Nome da Página *</FormLabel><FormControl><Input id="lp-name" autoComplete="off" placeholder="Ex: Lançamento do Produto Y" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="campaignId" render={({ field }) => ( <FormItem><FormLabel>Associar à Campanha</FormLabel><Select onValueChange={(value) => field.onChange(value === "NONE" ? null : parseInt(value))} defaultValue={field.value === null ? "NONE" : String(field.value)}><FormControl><SelectTrigger id="lp-campaignId"><SelectValue placeholder="Nenhuma" /></SelectTrigger></FormControl><SelectContent><SelectItem value="NONE">Nenhuma campanha</SelectItem>{campaigns.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="reference" render={({ field }) => ( <FormItem><FormLabel>URL de Referência (Opcional)</FormLabel><FormControl><Input id="lp-reference" autoComplete="url" placeholder="https://exemplo.com/pagina-inspiracao" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="prompt" render={({ field }) => ( <FormItem><FormLabel>Prompt Detalhado *</FormLabel><FormControl><Textarea id="lp-prompt" placeholder="Descreva a estrutura, seções, conteúdo e o objetivo da sua página..." rows={8} {...field} /></FormControl><FormMessage /></FormItem> )} />
                 <Button type="submit" className="w-full" disabled={previewMutation.isPending}>
                   {previewMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Gerando Preview...</> : 'Gerar Preview'}
                 </Button>
