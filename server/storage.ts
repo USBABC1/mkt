@@ -300,8 +300,9 @@ export class DatabaseStorage {
     const [lp] = await db.select().from(schema.landingPages).where(and(eq(schema.landingPages.studioProjectId, studioProjectId), eq(schema.landingPages.userId, userId))).limit(1);
     return lp;
   }
-  async createLandingPage(lpData: schema.InsertLandingPage): Promise<schema.LandingPage> {
-    const [newLP] = await db.insert(schema.landingPages).values(lpData).returning();
+  // ✅ CORREÇÃO: Função agora aceita o userId e o injeta no objeto de inserção.
+  async createLandingPage(lpData: schema.InsertLandingPage, userId: number): Promise<schema.LandingPage> {
+    const [newLP] = await db.insert(schema.landingPages).values({ ...lpData, userId }).returning();
     if (!newLP) throw new Error("Falha ao criar landing page.");
     return newLP;
   }
