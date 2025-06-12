@@ -3,7 +3,6 @@ import React, { useEffect, useRef } from 'react';
 import grapesjs, { Editor, EditorConfig } from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
 import grapesjsPresetWebpage from 'grapesjs-preset-webpage';
-import grapesjsTailwind from 'grapesjs-tailwind';
 import { LandingPage, InsertLandingPage } from '@shared/schema';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
@@ -64,18 +63,13 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
             assets: [],
             uploadName: 'files',
         },
-        // ✅ APRIMORAMENTO: Usando plugins para uma experiência de edição completa e estável.
-        plugins: [
-          grapesjsPresetWebpage,
-          grapesjsTailwind,
-        ],
+        canvas: {
+          scripts: ['https://cdn.tailwindcss.com'],
+        },
+        // ✅ CORREÇÃO: Usando apenas o preset 'webpage' para uma experiência rica e estável.
+        plugins: [grapesjsPresetWebpage],
         pluginsOpts: {
-          [grapesjsPresetWebpage as any]: {
-            // opções do preset se necessário
-          },
-          [grapesjsTailwind as any]: {
-            // opções do plugin de tailwind
-          }
+          [grapesjsPresetWebpage as any]: {},
         },
       };
 
