@@ -37,7 +37,6 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
       if (id) {
         return apiRequest('PUT', `/api/landingpages/${id}`, lpData);
       }
-      // CORREÇÃO: Endpoint corrigido de '/api/landingpages' para '/api/landingpages'
       return apiRequest('POST', '/api/landingpages', lpData);
     },
     onSuccess: () => {
@@ -54,11 +53,8 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
     if (editorRef.current && !studioInstanceRef.current) {
         
         const config: StudioConfig = {
-            // AVISO DE SEGURANÇA: A biblioteca do editor usa um iframe com 'allow-scripts' e 'allow-same-origin',
-            // o que gera um aviso no console. Isso é necessário para a funcionalidade do editor.
             container: editorRef.current,
             
-            // CORREÇÃO: Adicionada configuração do AssetManager para evitar carregamento de imagens quebradas.
             grapesjs: {
               assetManager: {
                 assets: [],
@@ -100,12 +96,11 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
             }
         };
         
-        // CORREÇÃO: Forma de importação e instanciação do Studio SDK ajustada.
+        // CORREÇÃO: Esta é a linha que corrige o erro "is not a constructor"
         studioInstanceRef.current = new (GrapesJSStudioSDK as any)(config);
     }
 
     return () => {
-      // Cleanup: Destrói a instância do editor ao desmontar o componente para evitar vazamentos de memória
       if (studioInstanceRef.current) {
         // @ts-ignore
         studioInstanceRef.current.destroy();
