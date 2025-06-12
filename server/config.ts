@@ -1,12 +1,10 @@
 // server/config.ts
 import dotenv from 'dotenv';
 import path from 'path';
-// ✅ CORREÇÃO: Importamos as ferramentas necessárias para resolver o caminho em ESM.
 import { fileURLToPath } from 'url';
 
 dotenv.config();
 
-// ✅ CORREÇÃO: Criamos um substituto moderno para __dirname.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -26,10 +24,12 @@ export const OPENROUTER_API_KEY = getEnv('OPENROUTER_API_KEY', '');
 
 // --- Configuração de Caminhos ---
 
-// ✅ CORREÇÃO: O caminho raiz do projeto agora é calculado corretamente (um nível acima de /server).
 export const PROJECT_ROOT = path.resolve(__dirname, '..'); 
 export const UPLOADS_DIR_NAME = "uploads";
 
-// O caminho para uploads agora aponta para a raiz do projeto, não para a pasta 'dist'.
-// Isso garante que os uploads não sejam apagados a cada novo deploy.
-export const UPLOADS_PATH = path.join(PROJECT_ROOT, UPLOADS_DIR_NAME);
+// ✅ CORREÇÃO: Usa uma variável de ambiente para o caminho de uploads, com fallback para o local.
+// No Koyeb, você deve definir a variável de ambiente UPLOADS_MOUNT_PATH para o caminho do seu disco persistente (ex: /data).
+const uploadsMountPath = process.env.UPLOADS_MOUNT_PATH;
+
+// O caminho para uploads agora aponta para o disco persistente (se definido), ou para a raiz do projeto.
+export const UPLOADS_PATH = uploadsMountPath ? path.join(uploadsMountPath, UPLOADS_DIR_NAME) : path.join(PROJECT_ROOT, UPLOADS_DIR_NAME);
