@@ -1,6 +1,9 @@
 // client/src/pages/landingpages.tsx
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { apiRequest } from '@/lib/api';
 import { LandingPage as LpType, InsertLandingPage } from '@shared/schema';
 import { Button } from '@/components/ui/button';
@@ -18,12 +21,15 @@ import { StudioEditorComponent } from '@/components/StudioEditorComponent';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
-interface GenerateLpFormData {
-  name: string;
-  slug: string;
-  prompt: string;
-}
+const generateLpFormSchema = z.object({
+  name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
+  slug: z.string().min(3, "O slug deve ter pelo menos 3 caracteres.").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug inválido (letras minúsculas, números e hífens)."),
+  prompt: z.string().min(20, "A descrição (prompt) deve ter pelo menos 20 caracteres."),
+});
+
+type GenerateLpFormData = z.infer<typeof generateLpFormSchema>;
 
 export default function LandingPages() {
   const { toast } = useToast();
@@ -31,7 +37,11 @@ export default function LandingPages() {
   const [showStudioEditor, setShowStudioEditor] = useState(false);
   const [editingLp, setEditingLp] = useState<LpType | null>(null);
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
-  const [generateFormData, setGenerateFormData] = useState<GenerateLpFormData>({ name: '', slug: '', prompt: '' });
+
+  const form = useForm<GenerateLpFormData>({
+    resolver: zodResolver(generateLpFormSchema),
+    defaultValues: { name: '', slug: '', prompt: '' },
+  });
   
   const { data: landingPages = [], isLoading } = useQuery<LpType[]>({
     queryKey: ['landingPages'],
@@ -48,22 +58,27 @@ export default function LandingPages() {
   });
   
   const createFromIaMutation = useMutation({
-    mutationFn: (data: { name: string, slug: string, prompt: string }) => apiRequest('POST', '/api/landingpages/generate-from-prompt', data),
+    mutationFn: (data: GenerateLpFormData) => apiRequest('POST', '/api/landingpages/generate-from-prompt', data),
     onSuccess: (newLp: LpType) => {
         toast({ title: "Sucesso!", description: "Landing page gerada e salva como rascunho." });
         queryClient.invalidateQueries({ queryKey: ['landingPages'] });
         setIsGenerateDialogOpen(false);
-        setGenerateFormData({ name: '', slug: '', prompt: '' });
+        form.reset();
         handleOpenStudio(newLp);
     },
-    onError: (error: any) => toast({ title: "Erro ao criar LP com IA", description: error.message, variant: "destructive" }),
+    onError: (error: any) => {
+      if (error.message && error.message.toLowerCase().includes('slug')) {
+          form.setError('slug', { type: 'manual', message: error.message });
+      } else {
+          toast({ title: "Erro ao criar LP com IA", description: error.message, variant: "destructive" });
+      }
+    },
   });
 
   const handleOpenStudio = (lp: LpType | null) => {
-    // Para uma nova LP, criamos um objeto temporário
     if (!lp) {
         const newLpData = {
-            id: undefined, // Sem ID para uma nova LP
+            id: undefined,
             name: 'Nova Landing Page',
             slug: `pagina-${Date.now()}`,
             status: 'draft',
@@ -76,22 +91,8 @@ export default function LandingPages() {
     setShowStudioEditor(true);
   };
   
-  const handleGenerateFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    let finalValue = value;
-    if (name === 'slug') {
-        finalValue = value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/\s+/g, '-');
-    }
-    setGenerateFormData(prev => ({ ...prev, [name]: finalValue }));
-  };
-  
-  const handleGenerateAndOpenEditor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!generateFormData.prompt || !generateFormData.name || !generateFormData.slug) {
-        toast({ title: "Atenção", description: "Todos os campos são obrigatórios.", variant: "destructive" });
-        return;
-    }
-    createFromIaMutation.mutate(generateFormData);
+  const handleGenerateAndOpenEditor = async (data: GenerateLpFormData) => {
+    createFromIaMutation.mutate(data);
   };
 
   if (showStudioEditor) {
@@ -158,12 +159,14 @@ export default function LandingPages() {
       <Dialog open={isGenerateDialogOpen} onOpenChange={setIsGenerateDialogOpen}>
           <DialogContent>
               <DialogHeader><DialogTitle>Gerar Landing Page com IA</DialogTitle><DialogDescription>Descreva a página que você deseja. A IA criará um rascunho que você poderá editar e salvar.</DialogDescription></DialogHeader>
-              <form onSubmit={handleGenerateAndOpenEditor} className="grid gap-4 py-4">
-                  <div className="grid gap-2"><Label htmlFor="name">Nome da Página *</Label><Input id="name" name="name" value={generateFormData.name} onChange={handleGenerateFormChange} placeholder="Ex: Ebook Gratuito de Marketing" required/></div>
-                  <div className="grid gap-2"><Label htmlFor="slug">URL (slug) *</Label><Input id="slug" name="slug" value={generateFormData.slug} onChange={handleGenerateFormChange} placeholder="Ex: ebook-gratuito-mkt" required/></div>
-                  <div className="grid gap-2"><Label htmlFor="prompt">Sua Descrição (Prompt) *</Label><Textarea id="prompt" name="prompt" value={generateFormData.prompt} onChange={handleGenerateFormChange} placeholder="Ex: Uma landing page para capturar leads oferecendo um ebook gratuito sobre marketing digital para iniciantes. Deve ter um título chamativo, uma imagem de capa do ebook, 3 benefícios principais e um formulário com campos para nome e email." rows={6} required/></div>
-                  <DialogFooter><Button type="submit" disabled={createFromIaMutation.isPending}>{createFromIaMutation.isPending ? <><SpinnerIcon className="mr-2 h-4 w-4 animate-spin"/> Gerando...</> : 'Gerar e Abrir Editor'}</Button></DialogFooter>
-              </form>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleGenerateAndOpenEditor)} className="grid gap-4 py-4">
+                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Nome da Página</FormLabel><FormControl><Input placeholder="Ex: Ebook Gratuito de Marketing" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="slug" render={({ field }) => ( <FormItem><FormLabel>URL (slug)</FormLabel><FormControl><Input placeholder="Ex: ebook-gratuito-mkt" {...field} onChange={e => field.onChange(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/\s+/g, '-'))} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="prompt" render={({ field }) => ( <FormItem><FormLabel>Sua Descrição (Prompt)</FormLabel><FormControl><Textarea placeholder="Ex: Uma landing page para capturar leads oferecendo um ebook gratuito sobre marketing digital para iniciantes..." rows={6} {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <DialogFooter><Button type="submit" disabled={createFromIaMutation.isPending}>{createFromIaMutation.isPending ? <><SpinnerIcon className="mr-2 h-4 w-4 animate-spin"/> Gerando...</> : 'Gerar e Abrir Editor'}</Button></DialogFooter>
+                </form>
+              </Form>
           </DialogContent>
       </Dialog>
     </div>
