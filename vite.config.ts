@@ -4,22 +4,20 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  root: './client', // Set client as root if that's where your index.html is
+  publicDir: '../public', // Adjust path to public directory
+  build: {
+    outDir: '../dist/client', // Output to dist/client from root
+    emptyOutDir: true,
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './client/src'),
       '@shared': path.resolve(__dirname, './shared'),
     },
   },
-  build: {
-    rollupOptions: {
-      external: [
-        // Add the problematic imports as externals
-        '@grapesjs/studio-sdk-plugins/forms',
-        '@grapesjs/studio-sdk-plugins/custom-code',
-        '@grapesjs/studio-sdk-plugins/export',
-        '@grapesjs/studio-sdk-plugins/tooltip',
-        '@grapesjs/studio-sdk-plugins/avatars'
-      ]
-    }
-  }
+  server: {
+    port: 5173,
+    open: true,
+  },
 })
