@@ -8,7 +8,7 @@ import { apiRequest } from '@/lib/api';
 import { LandingPage as LpType, InsertLandingPage, Campaign as CampaignType } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { MoreHorizontal, Edit, Bot, Loader2, Link as LinkIcon, Save } from 'lucide-react';
+import { MoreHorizontal, Edit, Bot, Loader2, Link as LinkIcon, Save, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { StudioEditorComponent } from '@/components/StudioEditorComponent';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -86,6 +86,19 @@ export default function LandingPages() {
     });
   };
 
+  // ✅ NOVO: Função para abrir o preview em uma nova aba
+  const handleOpenInNewTab = () => {
+    if (previewHtml) {
+        const newWindow = window.open();
+        if (newWindow) {
+            newWindow.document.write(previewHtml);
+            newWindow.document.close();
+        } else {
+            toast({ title: "Erro", description: "Não foi possível abrir a nova aba. Verifique se o seu navegador está bloqueando pop-ups.", variant: "destructive" });
+        }
+    }
+  };
+
   if (showStudioEditor) {
     return <StudioEditorComponent initialData={editingLp} onBack={() => { setShowStudioEditor(false); setEditingLp(null); }} />;
   }
@@ -121,12 +134,18 @@ export default function LandingPages() {
         <Card>
           <CardHeader>
             <CardTitle>Preview da Página</CardTitle>
-            <div className="flex items-center justify-between">
-                <CardDescription>Revise o resultado. Se gostar, clique em editar para customizar.</CardDescription>
-                <Button onClick={handleEditClick} size="sm" disabled={!previewHtml || saveAndEditMutation.isPending}>
-                    {saveAndEditMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Edit className="mr-2 h-4 w-4"/>}
-                    Salvar e Editar
-                </Button>
+            <div className="flex items-center justify-between gap-2">
+                <CardDescription className="flex-grow">Revise o resultado e clique para editar ou abrir em nova aba.</CardDescription>
+                <div className="flex items-center flex-shrink-0 gap-2">
+                    {/* ✅ NOVO: Botão para abrir em nova aba */}
+                    <Button onClick={handleOpenInNewTab} size="sm" variant="outline" disabled={!previewHtml}>
+                        <ExternalLink className="mr-2 h-4 w-4"/> Nova Aba
+                    </Button>
+                    <Button onClick={handleEditClick} size="sm" disabled={!previewHtml || saveAndEditMutation.isPending}>
+                        {saveAndEditMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Edit className="mr-2 h-4 w-4"/>}
+                        Salvar e Editar
+                    </Button>
+                </div>
             </div>
           </CardHeader>
           <CardContent className="h-[calc(100vh-20rem)] min-h-[500px] border rounded-md bg-white">
