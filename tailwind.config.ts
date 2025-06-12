@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss"
+import tailwindcssAnimate from "tailwindcss-animate" // ✅ 1. IMPORTADO EM VEZ DE REQUIRE
 
 const config = {
   darkMode: ["class"],
@@ -74,7 +75,7 @@ const config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate], // ✅ 2. USANDO O PLUGIN IMPORTADO
 } satisfies Config
 
 export default config
