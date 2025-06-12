@@ -1,18 +1,14 @@
+// vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from 'node:url';
-// ✅ CORREÇÃO: Plugin tailwindcss removido, pois usaremos postcss.config.cjs
-// import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ command, mode }) => {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
   const plugins = [
     react(),
-    // tailwindcss(), // ✅ CORREÇÃO: Linha removida
   ];
-
+  
   if (mode !== "production" && process.env.REPL_ID) {
     import("@replit/vite-plugin-cartographer")
       .then(module => {
@@ -25,8 +21,9 @@ export default defineConfig(({ command, mode }) => {
       .catch(e => console.warn("@replit/vite-plugin-cartographer not found or failed to load, skipping.", e));
   }
   
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  
   return {
-    root: path.resolve(__dirname, "client"),
     plugins: plugins,
     define: {
       'import.meta.env.VITE_FORCE_AUTH_BYPASS': JSON.stringify(process.env.VITE_FORCE_AUTH_BYPASS || process.env.FORCE_AUTH_BYPASS || 'false'),
@@ -42,22 +39,20 @@ export default defineConfig(({ command, mode }) => {
         "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
       },
     },
+    root: path.resolve(__dirname, "client"),
     build: {
       outDir: path.resolve(__dirname, "dist/public"),
-      emptyOutDir: true, 
+      emptyOutDir: true,
+      // Remove the external configuration - let Vite handle bundling
       rollupOptions: {
-        input: {
-          main: path.resolve(__dirname, 'client', 'index.html'),
-        },
+        output: {
+          manualChunks: {
+            // Split large dependencies into separate chunks
+            'grapesjs': ['@grapesjs/studio-sdk'],
+            'grapesjs-plugins': ['@grapesjs/studio-sdk-plugins'],
+          }
+        }
       },
-    },
-    optimizeDeps: {
-      include: [
-        '@grapesjs/studio', 
-        '@xyflow/react', 
-        'jspdf', 
-        'jspdf-autotable',
-      ],
     },
     server: { 
       port: 3000, 
@@ -67,6 +62,13 @@ export default defineConfig(({ command, mode }) => {
         'work-1-cixzsejsspdqlyvw.prod-runtime.all-hands.dev',
         'work-2-cixzsejsspdqlyvw.prod-runtime.all-hands.dev',
         '.all-hands.dev', '.prod-runtime.all-hands.dev'
+      ],
+    },
+    // Help Vite handle the GrapesJS packages
+    optimizeDeps: {
+      include: [
+        '@grapesjs/studio-sdk',
+        '@grapesjs/studio-sdk-plugins'
       ],
     },
   };
