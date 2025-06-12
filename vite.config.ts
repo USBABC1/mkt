@@ -29,10 +29,17 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     plugins: plugins,
+
+    // ✅ CORREÇÃO: Adicionamos a configuração 'ssr'
+    // Esta configuração instrui o Vite a incluir o pacote @grapesjs/studio no build,
+    // resolvendo o erro de "failed to resolve import".
+    ssr: {
+      noExternal: ['@grapesjs/studio'],
+    },
+
     define: {
       'import.meta.env.VITE_FORCE_AUTH_BYPASS': JSON.stringify(process.env.VITE_FORCE_AUTH_BYPASS || process.env.FORCE_AUTH_BYPASS || 'false'),
       'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || process.env.APP_BASE_URL || ''),
-      // ✅ CORREÇÃO: Expondo a Google Client ID para o frontend
       'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || ''),
     },
     resolve: {
