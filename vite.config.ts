@@ -44,9 +44,8 @@ export default defineConfig(({ command, mode }) => {
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true, 
       rollupOptions: {
-        // ✅ CORREÇÃO: Externaliza o SDK para que ele não seja empacotado pelo Vite.
-        // O Vite irá esperar que ele seja carregado pelo script no index.html.
-        external: ['@grapesjs/studio-sdk'],
+        // ✅ CORREÇÃO: Externaliza qualquer pacote @grapesjs/* para que não sejam empacotados pelo Vite.
+        external: [/^@grapesjs\/.*/],
         output: {
           globals: {
             // Mapeia o import para a variável global criada pelo script CDN.
