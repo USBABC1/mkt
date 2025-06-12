@@ -6,7 +6,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@theme {
+@layer base {
   :root {
     --background: 220 15% 97%;
     --foreground: 220 10% 20%;
@@ -70,18 +70,6 @@
     
     --neu-shadow-dark-source-hsl: 220 20% 2%;
     --neu-shadow-light-source-hsl: 220 10% 18%;
-
-    --neu-shadow-outset: 
-      var(--neu-outset-offset) var(--neu-outset-offset) var(--neu-outset-blur) var(--neu-outset-spread) hsl(var(--neu-shadow-dark-source-hsl) / 0.7), 
-      calc(-1 * var(--neu-outset-offset)) calc(-1 * var(--neu-outset-offset)) var(--neu-outset-blur) var(--neu-outset-spread) hsl(var(--neu-shadow-light-source-hsl) / 0.6);
-    --neu-shadow-pressed: 
-      inset var(--neu-pressed-offset) var(--neu-pressed-offset) var(--neu-pressed-blur) hsl(var(--neu-shadow-dark-source-hsl) / 0.75), 
-      inset calc(-1 * var(--neu-pressed-offset)) calc(-1 * var(--neu-pressed-offset)) var(--neu-pressed-blur) hsl(var(--neu-shadow-light-source-hsl) / 0.65);
-    --neu-shadow-inset: 
-      inset var(--neu-inset-offset) var(--neu-inset-offset) var(--neu-inset-blur) hsl(var(--neu-shadow-dark-source-hsl) / 0.8), 
-      inset calc(-1 * var(--neu-inset-offset)) calc(-1 * var(--neu-inset-offset)) var(--neu-inset-blur) hsl(var(--neu-shadow-light-source-hsl) / 0.7);
-
-    --text-neon-glow-primary: 0 0 3px hsl(var(--primary) / 0.9), 0 0 6px hsl(var(--primary) / 0.7); 
   }
   
   :root, .dark {
@@ -96,6 +84,20 @@
     --neu-inset-blur: 6px;
   }
   
+  .dark {
+    --neu-shadow-outset: 
+      var(--neu-outset-offset) var(--neu-outset-offset) var(--neu-outset-blur) var(--neu-outset-spread) hsl(var(--neu-shadow-dark-source-hsl) / 0.7), 
+      calc(-1 * var(--neu-outset-offset)) calc(-1 * var(--neu-outset-offset)) var(--neu-outset-blur) var(--neu-outset-spread) hsl(var(--neu-shadow-light-source-hsl) / 0.6);
+    --neu-shadow-pressed: 
+      inset var(--neu-pressed-offset) var(--neu-pressed-offset) var(--neu-pressed-blur) hsl(var(--neu-shadow-dark-source-hsl) / 0.75), 
+      inset calc(-1 * var(--neu-pressed-offset)) calc(-1 * var(--neu-pressed-offset)) var(--neu-pressed-blur) hsl(var(--neu-shadow-light-source-hsl) / 0.65);
+    --neu-shadow-inset: 
+      inset var(--neu-inset-offset) var(--neu-inset-offset) var(--neu-inset-blur) hsl(var(--neu-shadow-dark-source-hsl) / 0.8), 
+      inset calc(-1 * var(--neu-inset-offset)) calc(-1 * var(--neu-inset-offset)) var(--neu-inset-blur) hsl(var(--neu-shadow-light-source-hsl) / 0.7);
+
+    --text-neon-glow-primary: 0 0 3px hsl(var(--primary) / 0.9), 0 0 6px hsl(var(--primary) / 0.7); 
+  }
+
   :root:not(.dark) {
     --neu-shadow-outset: 
       var(--neu-outset-offset) var(--neu-outset-offset) var(--neu-outset-blur) var(--neu-outset-spread) hsl(var(--neu-shadow-dark-source-hsl-light) / 0.2), 
@@ -114,18 +116,11 @@
     --sidebar-accent-fg: hsl(var(--primary));
     --text-neon-glow-primary: none;
   }
-}
 
-@layer base {
+  * { @apply border-border; }
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    @apply bg-background text-foreground font-sans antialiased transition-colors duration-300;
     font-family: 'Montserrat', sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    transition-property: color, background-color;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 300ms;
     font-feature-settings: "rlig" 1, "calt" 1;
     background-size: cover;
     background-position: center;
@@ -133,10 +128,7 @@
     background-attachment: fixed;
   }
   html, body { height: 100%; padding: 0; margin: 0; }
-  * { 
-    box-sizing: border-box; 
-    border-color: hsl(var(--border));
-  }
+  * { box-sizing: border-box; }
   *:focus-visible { @apply outline-none ring-2 ring-offset-2 ring-ring ring-offset-background; }
 }
 
