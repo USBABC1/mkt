@@ -38,26 +38,23 @@ export default defineConfig(({ command, mode }) => {
         "@/types": path.resolve(__dirname, "client", "src", "types"),
         "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
       },
-      mainFields: ['module', 'main', 'jsnext:main', 'browser'],
     },
     root: path.resolve(__dirname, "client"),
     build: {
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true, 
-      rollupOptions: {},
-      commonjsOptions: {
-        transformMixedEsModules: true,
-      }
-    },
-    optimizeDeps: {
-      include: [
-        '@grapesjs/studio', 
-        '@grapesjs/react',
-        'grapesjs',
-        '@xyflow/react', 
-        'jspdf', 
-        'jspdf-autotable',
-      ],
+      rollupOptions: {
+        // ✅ CORREÇÃO FINAL: Externalizamos os pacotes do GrapesJS
+        // Isso diz ao Vite para NÃO tentar empacotá-los.
+        external: ['@grapesjs/studio', 'grapesjs'],
+        output: {
+          globals: {
+            // Mapeia o import para uma variável global que será criada pelo script CDN
+            '@grapesjs/studio': 'GrapesJSStudio',
+            'grapesjs': 'grapesjs',
+          }
+        }
+      },
     },
     server: { 
       port: 3000, 
