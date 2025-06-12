@@ -4,13 +4,9 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from 'node:url';
 
-// Plugins específicos do Replit (ou ambiente similar)
-// import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal"; 
-
 export default defineConfig(({ command, mode }) => {
   const plugins = [
     react(),
-    // runtimeErrorOverlay(),
   ];
 
   if (mode !== "production" && process.env.REPL_ID) {
@@ -29,14 +25,6 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     plugins: plugins,
-
-    // ✅ CORREÇÃO: Adicionamos a configuração 'ssr'
-    // Esta configuração instrui o Vite a incluir o pacote @grapesjs/studio no build,
-    // resolvendo o erro de "failed to resolve import".
-    ssr: {
-      noExternal: ['@grapesjs/studio'],
-    },
-
     define: {
       'import.meta.env.VITE_FORCE_AUTH_BYPASS': JSON.stringify(process.env.VITE_FORCE_AUTH_BYPASS || process.env.FORCE_AUTH_BYPASS || 'false'),
       'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || process.env.APP_BASE_URL || ''),
@@ -57,14 +45,21 @@ export default defineConfig(({ command, mode }) => {
       emptyOutDir: true, 
       rollupOptions: {},
     },
+    
+    // ✅ CORREÇÃO APRIMORADA:
+    // Forçamos o Vite a pré-otimizar o GrapesJS Studio e suas dependências internas.
+    // Isso garante que todos os módulos necessários sejam encontrados durante o build.
     optimizeDeps: {
       include: [
-        '@grapesjs/studio', 
+        '@grapesjs/studio',
+        '@grapesjs/react', // Dependência importante do Studio
+        'grapesjs',       // O núcleo do GrapesJS
         '@xyflow/react', 
         'jspdf', 
         'jspdf-autotable',
       ],
     },
+
     server: { 
       port: 3000, 
       host: '0.0.0.0',
