@@ -1,11 +1,7 @@
-[phases.setup]
-nixPkgs = ['nodejs_20', 'npm-9_x']
-
+# nixpacks.toml
 [phases.install]
-cmds = ['npm install']
-
-[phases.build]
-cmds = ['npm run build']
+# Trocamos o comando de instalação para pnpm
+cmds = ["pnpm install --production=false"]
 
 [start]
-cmd = 'npm start'
+cmd = "npm run start"
