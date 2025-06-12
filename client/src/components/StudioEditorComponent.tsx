@@ -20,107 +20,63 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
 
   const saveLpMutation = useMutation({
     mutationFn: async (data: { grapesJsData: any }) => {
-        const isEditing = !!initialData?.id;
-        const endpoint = isEditing ? `/api/landingpages/${initialData.id}` : '/api/landingpages';
-        const method = isEditing ? 'PUT' : 'POST';
+      const isEditing = !!initialData?.id;
+      const endpoint = isEditing ? `/api/landingpages/${initialData.id}` : '/api/landingpages';
+      const method = isEditing ? 'PUT' : 'POST';
 
-        const name = studioInstanceRef.current?.getProject()?.get('name') || initialData?.name || 'Nova Página';
-        const slug = studioInstanceRef.current?.getProject()?.get('slug') || initialData?.slug || `pagina-${Date.now()}`;
-        
-        const payload: Partial<InsertLandingPage> = { name, slug, grapesJsData: data.grapesJsData, status: 'draft' };
+      const name = studioInstanceRef.current?.getProject()?.name || initialData?.name || 'Nova Página';
+      const slug = studioInstanceRef.current?.getProject()?.slug || initialData?.slug || `pagina-${Date.now()}`;
+      
+      const payload: Partial<InsertLandingPage> = { 
+        name, 
+        slug, 
+        grapesJsData: data.grapesJsData, 
+        status: 'draft',
+        updatedAt: new Date().toISOString()
+      };
 
-        const response = await apiRequest(method, endpoint, payload);
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Falha ao salvar a landing page.');
-        }
-        return response.json();
+      const response = await apiRequest(method, endpoint, payload);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha ao salvar a landing page.');
+      }
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({ title: "Sucesso!", description: "Landing page salva com sucesso." });
       queryClient.invalidateQueries({ queryKey: ['landingPages'] });
+      if (!initialData?.id) {
+        queryClient.setQueryData(['landingPages', data.id], data);
+      }
       onBack();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({ title: "Erro ao Salvar", description: error.message, variant: "destructive" });
     }
   });
 
   const initializeEditor = useCallback(async () => {
-    if (!editorRef.current || studioInstanceRef.current || isInitializing) {
-      return;
-    }
+    if (!editorRef.current || studioInstanceRef.current || isInitializing) return;
 
     setIsInitializing(true);
     setInitError(null);
 
     try {
-      console.log('Starting GrapesJS Studio initialization...');
-
-      // Test the import first
-      const testModule = await import('@grapesjs/studio-sdk');
-      console.log('Module imported successfully:', {
-        hasDefault: !!testModule.default,
-        hasStudioSDK: !!(testModule as any).StudioSDK,
-        moduleKeys: Object.keys(testModule),
-        defaultType: typeof testModule.default,
-        moduleType: typeof testModule
-      });
-
-      // Import CSS
+      const { default: StudioSDK } = await import('@grapesjs/studio-sdk');
       await import('@grapesjs/studio-sdk/dist/style.css');
 
-      // Try different approaches to get the constructor
-      let StudioSDK: any = null;
-      
-      if (testModule.default && typeof testModule.default === 'function') {
-        StudioSDK = testModule.default;
-        console.log('Using default export as constructor');
-      } else if ((testModule as any).StudioSDK && typeof (testModule as any).StudioSDK === 'function') {
-        StudioSDK = (testModule as any).StudioSDK;
-        console.log('Using named StudioSDK export');
-      } else if (typeof testModule === 'function') {
-        StudioSDK = testModule;
-        console.log('Using module itself as constructor');
-      } else {
-        // Check for other possible export names
-        const possibleNames = ['Studio', 'GrapesJSStudio', 'SDK', 'StudioEditor'];
-        for (const name of possibleNames) {
-          if ((testModule as any)[name] && typeof (testModule as any)[name] === 'function') {
-            StudioSDK = (testModule as any)[name];
-            console.log(`Using ${name} export as constructor`);
-            break;
-          }
-        }
-      }
-
-      if (!StudioSDK || typeof StudioSDK !== 'function') {
-        throw new Error(`Could not find a valid constructor. Available exports: ${Object.keys(testModule).join(', ')}`);
-      }
-
-      // Load plugins with error handling
-      let plugins: any[] = [];
-      try {
-        const studioPlugins = await import('@grapesjs/studio-sdk-plugins');
-        console.log('Plugins loaded:', Object.keys(studioPlugins));
-        
-        const pluginList = [
-          studioPlugins.pluginForms,
-          studioPlugins.pluginCustomCode,
-          studioPlugins.pluginExport,
-          studioPlugins.pluginTooltip,
-          studioPlugins.pluginAvatars
-        ];
-        
-        plugins = pluginList.filter(plugin => plugin && typeof plugin === 'function');
-        console.log(`Loaded ${plugins.length} plugins`);
-      } catch (pluginError) {
-        console.warn('Could not load studio plugins:', pluginError);
-      }
+      const studioPlugins = await import('@grapesjs/studio-sdk-plugins');
+      const plugins = [
+        studioPlugins.pluginForms,
+        studioPlugins.pluginCustomCode,
+        studioPlugins.pluginExport,
+        studioPlugins.pluginTooltip,
+        studioPlugins.pluginAvatars
+      ].filter(plugin => typeof plugin === 'function');
 
       const config = {
         container: editorRef.current,
-        plugins: plugins,
+        plugins,
         project: initialData?.id ? {
           id: String(initialData.id),
           main: initialData.grapesJsData,
@@ -128,30 +84,22 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
           name: 'Nova Landing Page',
           template: '@grapesjs/template-blank',
         },
-        onSave: (data: any) => {
-          console.log('Save triggered with data:', data);
-          saveLpMutation.mutate({ grapesJsData: data.project.main });
-        },
+        onSave: (data: any) => saveLpMutation.mutate({ grapesJsData: data.project.main }),
         getBackLink: () => {
           const backLink = document.createElement('button');
           backLink.className = 'absolute top-3 left-3 z-10 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2';
           backLink.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left mr-2 h-4 w-4"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Voltar`;
           backLink.onclick = onBack;
           return backLink;
-        }
+        },
+        autoSave: true,
+        autosaveInterval: 300000, // 5 minutes
       };
-      
-      console.log('Initializing with config:', config);
-      
-      // Create the instance
+
       studioInstanceRef.current = new StudioSDK(config);
-      console.log('GrapesJS Studio initialized successfully');
-      
     } catch (error) {
-      console.error('Failed to initialize GrapesJS Studio:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setInitError(errorMessage);
-      
       toast({ 
         title: "Erro de Inicialização", 
         description: `Falha ao carregar o editor: ${errorMessage}`, 
@@ -163,27 +111,16 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
   }, [initialData, onBack, saveLpMutation, toast, isInitializing]);
 
   useEffect(() => {
-    // Add a small delay to avoid initialization issues with React StrictMode
-    const timer = setTimeout(() => {
-      initializeEditor();
-    }, 100);
-
+    const timer = setTimeout(initializeEditor, 100);
     return () => {
       clearTimeout(timer);
-      if (studioInstanceRef.current) {
-        try {
-          if (typeof studioInstanceRef.current.destroy === 'function') {
-            studioInstanceRef.current.destroy();
-          }
-        } catch (error) {
-          console.warn('Error destroying studio instance:', error);
-        }
+      if (studioInstanceRef.current?.destroy) {
+        studioInstanceRef.current.destroy();
         studioInstanceRef.current = null;
       }
     };
-  }, []); // Empty dependency array to run only once
+  }, [initializeEditor]);
 
-  // Show loading or error state
   if (isInitializing) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-background">
@@ -230,7 +167,9 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
 
   return (
     <div className="h-screen w-full flex flex-col bg-background">
-      <div ref={editorRef} style={{ flexGrow: 1 }} />
+      <div ref={editorRef} className="flex-grow" />
     </div>
   );
 };
+
+// Path: client/src/components/StudioEditorComponent.tsx
