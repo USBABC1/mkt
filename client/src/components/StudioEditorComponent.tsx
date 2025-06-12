@@ -1,7 +1,8 @@
 // client/src/components/StudioEditorComponent.tsx
 import React, { useEffect, useRef } from 'react';
 import GrapesJSStudioSDK, { StudioConfig } from '@grapesjs/studio-sdk';
-// ✅ CORREÇÃO: Importando cada plugin individualmente para resolver o erro de build.
+import '@grapesjs/studio-sdk/dist/style.css';
+// ✅ CORREÇÃO: Importando cada plugin individualmente para que o Vite os encontre.
 import pluginForms from '@grapesjs/studio-sdk-plugins/forms';
 import pluginCustomCode from '@grapesjs/studio-sdk-plugins/custom-code';
 import pluginExport from '@grapesjs/studio-sdk-plugins/export';
