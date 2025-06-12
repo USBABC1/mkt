@@ -3,13 +3,15 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from 'node:url';
-import tailwindcss from '@tailwindcss/vite'; // ✅ 1. IMPORTAR O PLUGIN DO TAILWIND
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ command, mode }) => {
-  // A sua lógica de plugins continua a mesma
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
   const plugins = [
     react(),
-    tailwindcss(), // ✅ 2. ADICIONAR O PLUGIN DO TAILWIND AQUI
+    // ✅ CORREÇÃO FINAL: Informamos o caminho exato para o config do Tailwind
+    tailwindcss({ config: path.resolve(__dirname, 'tailwind.config.ts') }),
   ];
 
   if (mode !== "production" && process.env.REPL_ID) {
@@ -24,9 +26,6 @@ export default defineConfig(({ command, mode }) => {
       .catch(e => console.warn("@replit/vite-plugin-cartographer not found or failed to load, skipping.", e));
   }
   
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-  // O resto da sua configuração permanece exatamente igual
   return {
     plugins: plugins,
     define: {
