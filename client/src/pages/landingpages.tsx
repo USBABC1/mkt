@@ -7,10 +7,10 @@ import { z } from 'zod';
 import { apiRequest } from '@/lib/api';
 import { LandingPage as LpType, InsertLandingPage, Campaign as CampaignType } from '@shared/schema';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MoreHorizontal, Edit, Bot, Loader2, Link as LinkIcon, Save, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { StudioEditorComponent } from '@/components/StudioEditorComponent';
+import GrapesJsEditor from '@/components/grapesjs-editor'; // ✅ CORREÇÃO: Usando o editor open-source
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,7 +30,7 @@ export default function LandingPages() {
   const queryClient = useQueryClient();
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [showStudioEditor, setShowStudioEditor] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
   const [editingLp, setEditingLp] = useState<LpType | null>(null);
 
   const { data: campaigns = [] } = useQuery<CampaignType[]>({
@@ -64,12 +64,27 @@ export default function LandingPages() {
       toast({ title: "Página Salva!", description: "Redirecionando para o editor..." });
       queryClient.invalidateQueries({ queryKey: ['landingPages'] });
       setEditingLp(savedLp);
-      setShowStudioEditor(true);
+      setShowEditor(true);
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao Salvar", description: error.message, variant: "destructive" });
     },
   });
+  
+  // ✅ CORREÇÃO: Nova mutação para ATUALIZAR a página a partir do editor
+  const updateLpMutation = useMutation({
+    mutationFn: async (data: { id: number, grapesJsData: any }) => {
+      return apiRequest('PUT', `/api/landingpages/${data.id}`, { grapesJsData: data.grapesJsData });
+    },
+    onSuccess: () => {
+      toast({ title: "Sucesso!", description: "Alterações na landing page salvas." });
+      queryClient.invalidateQueries({ queryKey: ['landingPages'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao Salvar", description: error.message, variant: "destructive" });
+    }
+  });
+
 
   const onGenerateSubmit = (data: GenerateLpFormData) => {
     setPreviewHtml(null);
@@ -86,21 +101,30 @@ export default function LandingPages() {
     });
   };
 
-  // ✅ NOVO: Função para abrir o preview em uma nova aba
   const handleOpenInNewTab = () => {
     if (previewHtml) {
-        const newWindow = window.open();
-        if (newWindow) {
-            newWindow.document.write(previewHtml);
-            newWindow.document.close();
-        } else {
-            toast({ title: "Erro", description: "Não foi possível abrir a nova aba. Verifique se o seu navegador está bloqueando pop-ups.", variant: "destructive" });
-        }
+      const newWindow = window.open();
+      if (newWindow) {
+        newWindow.document.write(previewHtml);
+        newWindow.document.close();
+      } else {
+        toast({ title: "Erro", description: "Não foi possível abrir a nova aba. Verifique se o seu navegador está bloqueando pop-ups.", variant: "destructive" });
+      }
     }
   };
 
-  if (showStudioEditor) {
-    return <StudioEditorComponent initialData={editingLp} onBack={() => { setShowStudioEditor(false); setEditingLp(null); }} />;
+  const handleSaveFromEditor = (id: number, data: any) => {
+    updateLpMutation.mutate({ id, grapesJsData: data });
+  };
+
+  if (showEditor && editingLp) {
+    return (
+        <GrapesJsEditor 
+            initialData={editingLp.grapesJsData as any} 
+            onSave={(data) => handleSaveFromEditor(editingLp.id, data)}
+            onBack={() => setShowEditor(false)}
+        />
+    );
   }
 
   return (
@@ -137,7 +161,6 @@ export default function LandingPages() {
             <div className="flex items-center justify-between gap-2">
                 <CardDescription className="flex-grow">Revise o resultado e clique para editar ou abrir em nova aba.</CardDescription>
                 <div className="flex items-center flex-shrink-0 gap-2">
-                    {/* ✅ NOVO: Botão para abrir em nova aba */}
                     <Button onClick={handleOpenInNewTab} size="sm" variant="outline" disabled={!previewHtml}>
                         <ExternalLink className="mr-2 h-4 w-4"/> Nova Aba
                     </Button>
