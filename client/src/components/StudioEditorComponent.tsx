@@ -3,21 +3,8 @@ import React, { useEffect, useRef } from 'react';
 import GrapesJSStudioSDK, { StudioConfig } from '@grapesjs/studio-sdk';
 import '@grapesjs/studio-sdk/dist/style.css';
 
-// Option 1: Try importing from the main plugins package
-import { 
-  pluginForms,
-  pluginCustomCode,
-  pluginExport,
-  pluginTooltip,
-  pluginAvatars
-} from '@grapesjs/studio-sdk-plugins';
-
-// Option 2: If Option 1 doesn't work, try these individual imports
-// import pluginForms from '@grapesjs/studio-sdk-plugins/dist/forms';
-// import pluginCustomCode from '@grapesjs/studio-sdk-plugins/dist/custom-code';
-// import pluginExport from '@grapesjs/studio-sdk-plugins/dist/export';
-// import pluginTooltip from '@grapesjs/studio-sdk-plugins/dist/tooltip';
-// import pluginAvatars from '@grapesjs/studio-sdk-plugins/dist/avatars';
+// Try importing the entire plugins package
+import * as StudioPlugins from '@grapesjs/studio-sdk-plugins';
 
 import { LandingPage, InsertLandingPage } from '@shared/schema';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -65,9 +52,18 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
 
   useEffect(() => {
     if (editorRef.current && !studioInstanceRef.current) {
+      // Extract plugins from the imported package
+      const plugins = [
+        StudioPlugins.pluginForms || StudioPlugins.forms,
+        StudioPlugins.pluginCustomCode || StudioPlugins.customCode,
+        StudioPlugins.pluginExport || StudioPlugins.export,
+        StudioPlugins.pluginTooltip || StudioPlugins.tooltip,
+        StudioPlugins.pluginAvatars || StudioPlugins.avatars
+      ].filter(Boolean); // Remove any undefined plugins
+
       const config: StudioConfig = {
         container: editorRef.current,
-        plugins: [pluginForms, pluginCustomCode, pluginExport, pluginTooltip, pluginAvatars],
+        plugins: plugins.length > 0 ? plugins : [], // Use empty array if no plugins found
         project: initialData?.id ? {
           id: String(initialData.id),
           // @ts-ignore
