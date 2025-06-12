@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
-// Dynamic imports to handle potential module resolution issues
 interface StudioEditorComponentProps {
   initialData: LandingPage | null;
   onBack: () => void;
@@ -49,20 +48,32 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
     const initializeEditor = async () => {
       if (editorRef.current && !studioInstanceRef.current) {
         try {
-          // Dynamic imports to handle module resolution
-          const [GrapesJSStudioSDK, studioPlugins] = await Promise.all([
-            import('@grapesjs/studio-sdk'),
-            import('@grapesjs/studio-sdk-plugins').catch(() => null)
-          ]);
-
-          // Import CSS
+          // Import CSS first
           await import('@grapesjs/studio-sdk/dist/style.css');
 
-          const StudioSDK = GrapesJSStudioSDK.default || GrapesJSStudioSDK;
+          // Dynamic import with better error handling
+          const GrapesJSStudioModule = await import('@grapesjs/studio-sdk');
           
-          // Configure plugins (use empty array if plugins fail to load)
+          // Try multiple ways to access the constructor
+          let StudioSDK: any;
+          if (GrapesJSStudioModule.default) {
+            StudioSDK = GrapesJSStudioModule.default;
+          } else if (GrapesJSStudioModule.StudioSDK) {
+            StudioSDK = GrapesJSStudioModule.StudioSDK;
+          } else {
+            // Fallback: use the module itself if it's a constructor
+            StudioSDK = GrapesJSStudioModule;
+          }
+
+          // Verify it's a constructor
+          if (typeof StudioSDK !== 'function') {
+            throw new Error('StudioSDK is not a constructor function');
+          }
+
+          // Import plugins with better error handling
           let plugins: any[] = [];
-          if (studioPlugins) {
+          try {
+            const studioPlugins = await import('@grapesjs/studio-sdk-plugins');
             plugins = [
               studioPlugins.pluginForms,
               studioPlugins.pluginCustomCode,
@@ -70,6 +81,9 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
               studioPlugins.pluginTooltip,
               studioPlugins.pluginAvatars
             ].filter(Boolean);
+          } catch (pluginError) {
+            console.warn('Could not load studio plugins:', pluginError);
+            // Continue without plugins
           }
 
           const config = {
@@ -94,12 +108,14 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
             }
           };
           
+          console.log('Initializing StudioSDK with config:', config);
           studioInstanceRef.current = new StudioSDK(config);
+          
         } catch (error) {
           console.error('Failed to initialize GrapesJS Studio:', error);
           toast({ 
             title: "Erro", 
-            description: "Falha ao carregar o editor. Verifique se as dependências estão instaladas.", 
+            description: `Falha ao carregar o editor: ${error.message}`, 
             variant: "destructive" 
           });
         }
@@ -111,7 +127,7 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
     return () => {
       if (studioInstanceRef.current) {
         try {
-          studioInstanceRef.current.destroy();
+          studioInstanceRef.current.destroy?.();
         } catch (error) {
           console.warn('Error destroying studio instance:', error);
         }
