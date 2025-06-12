@@ -1,13 +1,14 @@
 // client/src/components/StudioEditorComponent.tsx
 import React, { useEffect, useRef } from 'react';
-import grapesjs, { Editor } from 'grapesjs';
+import grapesjs, { Editor, EditorConfig } from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
+import grapesjsPresetWebpage from 'grapesjs-preset-webpage';
 import { LandingPage, InsertLandingPage } from '@shared/schema';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from './ui/button';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Save } from 'lucide-react';
 
 interface StudioEditorComponentProps {
   initialData: LandingPage | null;
@@ -22,18 +23,18 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
 
   const saveLpMutation = useMutation({
     mutationFn: async (data: { grapesJsData: any }) => {
-      if (!initialData) throw new Error("Dados da landing page não encontrados para salvar.");
-      
+      // ✅ CORREÇÃO: Garante que estamos criando ou atualizando a LP correta
+      const isEditing = !!initialData?.id;
+      const endpoint = isEditing ? `/api/landingpages/${initialData.id}` : '/api/landingpages';
+      const method = isEditing ? 'PUT' : 'POST';
+
       const payload: Partial<InsertLandingPage> = {
-        name: initialData.name,
-        slug: initialData.slug,
+        name: editorInstance.current?.getProjectData()?.name || initialData?.name || 'Nova Página',
+        slug: editorInstance.current?.getProjectData()?.slug || initialData?.slug || `pagina-${Date.now()}`,
         grapesJsData: data.grapesJsData,
       };
 
-      const endpoint = `/api/landingpages/${initialData.id}`;
-      const method = 'PUT';
       const response = await apiRequest(method, endpoint, payload);
-      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Falha ao salvar a landing page.');
@@ -41,7 +42,7 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso!", description: "Landing page salva com sucesso." });
+      toast({ title: "Sucesso!", description: "Landing page salva." });
       queryClient.invalidateQueries({ queryKey: ['landingPages'] });
       onBack();
     },
@@ -52,46 +53,44 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
 
   useEffect(() => {
     if (editorRef.current && !editorInstance.current) {
-      const editor = grapesjs.init({
+      const editorConfig: EditorConfig = {
         container: editorRef.current,
         fromElement: false,
         height: 'calc(100vh - 70px)',
         width: 'auto',
-        storageManager: false, // Desativamos o storage local para controlar o salvamento manualmente
+        storageManager: false, // Desativa o storage local padrão para controle manual.
         assetManager: {
             upload: '/api/assets/lp-upload',
-            assets: [], // Inicia sem assets quebrados
+            assets: [],
+            uploadName: 'files',
         },
         canvas: {
-          // Adiciona o script do Tailwind Play CDN para usar classes do Tailwind no editor
+          // ✅ CORREÇÃO: Carrega o Tailwind via CDN no canvas do editor
           scripts: ['https://cdn.tailwindcss.com'],
-          styles: [
-            // Você pode adicionar um link para um CSS base se desejar
-          ],
         },
-        plugins: ['gjs-preset-webpage'],
+        plugins: [grapesjsPresetWebpage],
         pluginsOpts: {
-          'gjs-preset-webpage': {
-            // opções do preset
-          },
+          [grapesjsPresetWebpage as any]: {},
         },
-      });
+      };
 
+      const editor = grapesjs.init(editorConfig);
+      
+      // Carrega dados iniciais, se existirem
       if (initialData?.grapesJsData) {
         try {
           // @ts-ignore
-          const projectData = typeof initialData.grapesJsData === 'string' ? JSON.parse(initialData.grapesJsData) : initialData.grapesJsData;
-          editor.loadProjectData(projectData);
+          editor.loadProjectData(initialData.grapesJsData);
         } catch (e) {
             console.error("Falha ao carregar dados do projeto, carregando HTML puro.", e);
             // @ts-ignore
             if (initialData.grapesJsData?.html) editor.setComponents(initialData.grapesJsData.html);
         }
       } else {
-         editor.setComponents(`
+        editor.setComponents(`
           <div class="p-5 text-center">
-            <h1 class="text-3xl font-bold">Construa sua Página</h1>
-            <p class="text-gray-500">Arraste os blocos da direita para começar.</p>
+            <h1 class="text-4xl font-bold">Construa sua Landing Page Incrível</h1>
+            <p class="text-gray-500 mt-2">Arraste os blocos do painel à direita para começar a criar.</p>
           </div>
         `);
       }
@@ -105,38 +104,32 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
         editorInstance.current = null;
       }
     };
-  }, []); // Dependência vazia para garantir que rode apenas uma vez.
+  }, []); // A dependência vazia garante que o editor inicialize apenas uma vez.
 
   const handleSave = () => {
     if (!editorInstance.current) {
-        toast({ title: "Erro", description: "Editor não inicializado.", variant: "destructive"});
+        toast({ title: "Erro", description: "O editor não foi inicializado.", variant: "destructive"});
         return;
     }
     const projectData = editorInstance.current.getProjectData();
-    saveLpMutation.mutate({
-      grapesJsData: projectData,
-    });
+    saveLpMutation.mutate({ grapesJsData: projectData });
   };
 
   return (
     <div className="h-screen w-full flex flex-col bg-background">
-        <div className="flex items-center justify-between p-2 bg-card border-b z-10">
-            <div>
-                <Button variant="ghost" onClick={onBack}>
-                    <ArrowLeft className="mr-2 h-4 w-4"/>
-                    Voltar
-                </Button>
-            </div>
+        <div className="flex items-center justify-between p-2 bg-card border-b z-10 flex-shrink-0">
+            <Button variant="ghost" onClick={onBack}>
+                <ArrowLeft className="mr-2 h-4 w-4"/>
+                Voltar para a Lista
+            </Button>
             <div className="text-center">
-                <h3 className="font-semibold">{initialData?.name}</h3>
-                <p className="text-xs text-muted-foreground">/{initialData?.slug}</p>
+                <h3 className="font-semibold">{initialData?.name || 'Nova Landing Page'}</h3>
+                <p className="text-xs text-muted-foreground">/{initialData?.slug || 'novo-slug'}</p>
             </div>
-            <div>
-                <Button onClick={handleSave} disabled={saveLpMutation.isPending}>
-                  {saveLpMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                  Salvar Alterações
-                </Button>
-            </div>
+            <Button onClick={handleSave} disabled={saveLpMutation.isPending}>
+              {saveLpMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
+              Salvar
+            </Button>
         </div>
         <div ref={editorRef} style={{ flexGrow: 1 }} className="grapesjs-editor"/>
     </div>
