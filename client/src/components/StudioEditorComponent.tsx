@@ -5,6 +5,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
+// ✅ CORREÇÃO: Importações estáticas em vez de dinâmicas
+import StudioSDK from '@grapesjs/studio-sdk';
+import * as studioPlugins from '@grapesjs/studio-sdk-plugins';
+import '@grapesjs/studio-sdk/dist/style.css';
+
+
 interface StudioEditorComponentProps {
   initialData: LandingPage | null;
   onBack: () => void;
@@ -15,24 +21,25 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
   const queryClient = useQueryClient();
   const editorRef = useRef<HTMLDivElement>(null);
   const studioInstanceRef = useRef<any>(null);
-  const [isInitializing, setIsInitializing] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true); // Inicia como true
   const [initError, setInitError] = useState<string | null>(null);
 
   const saveLpMutation = useMutation({
     mutationFn: async (data: { grapesJsData: any }) => {
       const isEditing = !!initialData?.id;
+      // ✅ CORREÇÃO: Usa o ID do `initialData` para PUT, senão é POST
       const endpoint = isEditing ? `/api/landingpages/${initialData.id}` : '/api/landingpages';
       const method = isEditing ? 'PUT' : 'POST';
 
       const name = studioInstanceRef.current?.getProject()?.name || initialData?.name || 'Nova Página';
-      const slug = studioInstanceRef.current?.getProject()?.slug || initialData?.slug || `pagina-${Date.now()}`;
+      // No modo de edição, não geramos um novo slug
+      const slug = isEditing ? initialData.slug : (name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `pagina-${Date.now()}`);
       
       const payload: Partial<InsertLandingPage> = { 
         name, 
         slug, 
         grapesJsData: data.grapesJsData, 
-        status: 'draft',
-        updatedAt: new Date().toISOString()
+        status: initialData?.status || 'draft',
       };
 
       const response = await apiRequest(method, endpoint, payload);
@@ -45,43 +52,37 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
     onSuccess: (data) => {
       toast({ title: "Sucesso!", description: "Landing page salva com sucesso." });
       queryClient.invalidateQueries({ queryKey: ['landingPages'] });
-      if (!initialData?.id) {
-        queryClient.setQueryData(['landingPages', data.id], data);
-      }
-      onBack();
+      // Não é mais necessário, o onBack vai fechar o editor
+      // onBack();
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao Salvar", description: error.message, variant: "destructive" });
     }
   });
 
-  const initializeEditor = useCallback(async () => {
-    if (!editorRef.current || studioInstanceRef.current || isInitializing) return;
+  // ✅ CORREÇÃO: Simplificado o useEffect para usar as importações estáticas
+  useEffect(() => {
+    if (!editorRef.current || studioInstanceRef.current) return;
 
-    setIsInitializing(true);
-    setInitError(null);
+    let studio: any;
 
     try {
-      const { default: StudioSDK } = await import('@grapesjs/studio-sdk');
-      await import('@grapesjs/studio-sdk/dist/style.css');
-
-      const studioPlugins = await import('@grapesjs/studio-sdk-plugins');
       const plugins = [
         studioPlugins.pluginForms,
         studioPlugins.pluginCustomCode,
         studioPlugins.pluginExport,
         studioPlugins.pluginTooltip,
-        studioPlugins.pluginAvatars
+        studioPlugins.pluginAvatars,
       ].filter(plugin => typeof plugin === 'function');
 
-      const config = {
+      const config: any = {
         container: editorRef.current,
         plugins,
-        project: initialData?.id ? {
+        project: initialData?.grapesJsData ? {
           id: String(initialData.id),
           main: initialData.grapesJsData,
         } : {
-          name: 'Nova Landing Page',
+          name: initialData?.name || 'Nova Landing Page',
           template: '@grapesjs/template-blank',
         },
         onSave: (data: any) => saveLpMutation.mutate({ grapesJsData: data.project.main }),
@@ -93,10 +94,13 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
           return backLink;
         },
         autoSave: true,
-        autosaveInterval: 300000, // 5 minutes
+        autosaveInterval: 300000,
       };
 
-      studioInstanceRef.current = new StudioSDK(config);
+      // `new StudioSDK(config)` é a forma correta de usar a classe importada
+      studio = new StudioSDK(config);
+      studioInstanceRef.current = studio;
+      setInitError(null);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setInitError(errorMessage);
@@ -108,18 +112,14 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
     } finally {
       setIsInitializing(false);
     }
-  }, [initialData, onBack, saveLpMutation, toast, isInitializing]);
 
-  useEffect(() => {
-    const timer = setTimeout(initializeEditor, 100);
     return () => {
-      clearTimeout(timer);
-      if (studioInstanceRef.current?.destroy) {
-        studioInstanceRef.current.destroy();
+      if (studio) {
+        studio.destroy();
         studioInstanceRef.current = null;
       }
     };
-  }, [initializeEditor]);
+  }, [initialData, onBack, saveLpMutation, toast]);
 
   if (isInitializing) {
     return (
@@ -147,7 +147,8 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
             <button 
               onClick={() => {
                 setInitError(null);
-                initializeEditor();
+                setIsInitializing(true);
+                // A re-inicialização será acionada pelo useEffect
               }}
               className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
             >
@@ -171,5 +172,3 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
     </div>
   );
 };
-
-// Path: client/src/components/StudioEditorComponent.tsx
