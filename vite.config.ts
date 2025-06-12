@@ -32,6 +32,10 @@ export default defineConfig(({ command, mode }) => {
     },
     resolve: {
       alias: {
+        // ✅ CORREÇÃO: Alias explícito para resolver o problema de importação do GrapesJS
+        '@grapesjs/studio': path.resolve(__dirname, 'node_modules/@grapesjs/studio'),
+        
+        // Aliases existentes
         "@": path.resolve(__dirname, "client", "src"),
         "@shared": path.resolve(__dirname, "shared"),
         "@assets": path.resolve(__dirname, "attached_assets"), 
@@ -45,21 +49,17 @@ export default defineConfig(({ command, mode }) => {
       emptyOutDir: true, 
       rollupOptions: {},
     },
-    
-    // ✅ CORREÇÃO APRIMORADA:
-    // Forçamos o Vite a pré-otimizar o GrapesJS Studio e suas dependências internas.
-    // Isso garante que todos os módulos necessários sejam encontrados durante o build.
     optimizeDeps: {
       include: [
-        '@grapesjs/studio',
-        '@grapesjs/react', // Dependência importante do Studio
-        'grapesjs',       // O núcleo do GrapesJS
+        // Manter a otimização é uma boa prática
+        '@grapesjs/studio', 
+        '@grapesjs/react',
+        'grapesjs',
         '@xyflow/react', 
         'jspdf', 
         'jspdf-autotable',
       ],
     },
-
     server: { 
       port: 3000, 
       host: '0.0.0.0',
