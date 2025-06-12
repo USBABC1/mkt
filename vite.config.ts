@@ -44,16 +44,7 @@ export default defineConfig(({ command, mode }) => {
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true, 
       rollupOptions: {
-        // ✅ CORREÇÃO FINAL: Externalizamos os pacotes do GrapesJS
-        // Isso diz ao Vite para NÃO tentar empacotá-los.
-        external: ['@grapesjs/studio', 'grapesjs'],
-        output: {
-          globals: {
-            // Mapeia o import para uma variável global que será criada pelo script CDN
-            '@grapesjs/studio': 'GrapesJSStudio',
-            'grapesjs': 'grapesjs',
-          }
-        }
+        // Bloco removido para permitir que o Vite empacote o GrapesJS
       },
     },
     server: { 
