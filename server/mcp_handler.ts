@@ -227,10 +227,24 @@ export async function handleMCPConversation(
 		const intentResponse = intentResult.response.text().trim();
 		console.log(`[MCP_HANDLER] Intenção detectada: ${intentResponse}`);
 
-		if (intentResponse.includes('CRIAR_TAREFA')) {
+        // ✅ CORREÇÃO: Lógica aprimorada para NAVEGAÇÃO
+        if (intentResponse.includes('NAVEGAR')) {
+            const validRoutes = ['/dashboard', '/campaigns', '/schedule', '/creatives', '/budget', '/landingpages', '/funnel', '/copy', '/metrics', '/alerts', '/whatsapp', '/integrations', '/export'];
+            const navigationPrompt = `O usuário quer navegar. Qual destas rotas é a mais apropriada para a mensagem "${message}"? Responda APENAS com a rota da lista. Lista de rotas válidas: ${validRoutes.join(", ")}.`;
+            const navResult = await model.generateContent(navigationPrompt);
+            const navPath = navResult.response.text().trim();
+
+            if (validRoutes.includes(navPath)) {
+                agentReplyText = `Claro, abrindo a página de ${navPath.replace('/', '')}...`;
+                responsePayload.action = "navigate";
+                responsePayload.payload = { path: navPath };
+            } else {
+                agentReplyText = "Entendi que você quer navegar, mas não sei para qual página. Pode ser mais específico?";
+            }
+        } else if (intentResponse.includes('CRIAR_TAREFA')) {
 			const taskDetails = await getTaskDetailsFromContext(message, history);
 			agentReplyText = await handleCreateTask(userId, taskDetails);
-			responsePayload.action = "invalidateQuery"; responsePayload.payload = { queryKey: ["campaigns", "tasks"] };
+			responsePayload.action = "invalidateQuery"; responsePayload.payload = { queryKey: ["campaigns", "tasks", "campaignSchedule"] };
 		} else if (intentResponse.includes('CRIAR_CAMPANHA')) {
 			const campaignDetails = await getCampaignDetailsFromContext(message, fileInfo);
 			if (campaignDetails && campaignDetails.name) {
@@ -241,7 +255,7 @@ export async function handleMCPConversation(
 			} else {
 				agentReplyText = "Entendi que você quer criar uma campanha, mas não consegui extrair um nome. Poderia me dizer o nome para a campanha?";
 			}
-		} else {
+		} else { // CONVERSA_GERAL
 			const historyForGemini = history.map(msg => ({ role: msg.sender === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
 
 			const systemPrompt = "Você é ubie, um assistente de IA conciso e proativo. Use Markdown para formatar suas respostas.";
@@ -272,7 +286,6 @@ export async function handleMCPConversation(
 }
 
 
-// ✅ CORREÇÃO: Lógica mais ágil e menos questionadora
 async function handleCreateTask(userId: number, taskDetails: Partial<InsertCampaignTask> & { campaignName?: string; phaseName?: string; } | null): Promise<string> {
 	if (!taskDetails || !taskDetails.name) {
 		return "Entendi que você quer criar uma tarefa, mas não consegui identificar o nome dela. Poderia repetir, por favor?";
@@ -285,16 +298,15 @@ async function handleCreateTask(userId: number, taskDetails: Partial<InsertCampa
 	let finalCampaign: Campaign;
 	let messages: string[] = [];
 
-	// 1. Encontrar ou Criar Campanha
 	const foundCampaigns = await storage.searchCampaignsByName(userId, taskDetails.campaignName);
 	if (foundCampaigns.length === 0) {
-		finalCampaign = await storage.createCampaign({ name: taskDetails.campaignName, userId, status: 'draft' });
+		const campaignData: InsertCampaign = { name: taskDetails.campaignName, userId, status: 'draft', platforms: [], objectives: [], targetAudience: null, isTemplate: false };
+		finalCampaign = await storage.createCampaign(campaignData);
 		messages.push(`Campanha **"${taskDetails.campaignName}"** não encontrada, então criei uma nova para você.`);
 	} else {
-		finalCampaign = foundCampaigns[0]; // Pega a primeira correspondência
+		finalCampaign = foundCampaigns[0];
 	}
 
-	// 2. Encontrar ou Criar Fase
 	const campaignDetails = await storage.getCampaignWithDetails(finalCampaign.id, userId);
 	let finalPhase: CampaignPhase;
 
@@ -308,14 +320,13 @@ async function handleCreateTask(userId: number, taskDetails: Partial<InsertCampa
 		}
 	} else {
         if (campaignDetails && campaignDetails.phases.length > 0) {
-            finalPhase = campaignDetails.phases[0]; // Usa a primeira fase se nenhuma for especificada
+            finalPhase = campaignDetails.phases.sort((a,b) => a.order - b.order)[0];
         } else {
             finalPhase = await storage.createPhase(finalCampaign.id, { name: "Planejamento", order: 1 });
             messages.push(`Criei uma fase padrão de **"Planejamento"** para sua tarefa.`);
         }
     }
 
-	// 3. Criar a Tarefa
 	try {
 		await storage.createTask({
 			phaseId: finalPhase.id,
