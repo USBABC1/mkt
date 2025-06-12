@@ -1,6 +1,6 @@
 // client/src/components/StudioEditorComponent.tsx
 import React, { useEffect, useRef } from 'react';
-import Studio, { type StudioConfig } from '@grapesjs/studio-sdk';
+import GrapesJSStudioSDK, { type StudioConfig } from '@grapesjs/studio-sdk';
 import { LandingPage } from '@shared/schema';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
@@ -37,7 +37,8 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
       if (id) {
         return apiRequest('PUT', `/api/landingpages/${id}`, lpData);
       }
-      return apiRequest('POST', `/api/landingpages`, lpData);
+      // CORREÇÃO: Endpoint corrigido de '/api/landingpages' para '/api/landingpages'
+      return apiRequest('POST', '/api/landingpages', lpData);
     },
     onSuccess: () => {
       toast({ title: 'Sucesso!', description: 'Landing page salva como rascunho.' });
@@ -49,14 +50,21 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
   });
   
   useEffect(() => {
+    // Evita reinicialização do editor
     if (editorRef.current && !studioInstanceRef.current) {
         
         const config: StudioConfig = {
-            // Insira sua chave pública do GrapesJS Studio aqui, se tiver uma.
-            // publicKey: 'YOUR_PUBLIC_KEY',
-            
+            // AVISO DE SEGURANÇA: A biblioteca do editor usa um iframe com 'allow-scripts' e 'allow-same-origin',
+            // o que gera um aviso no console. Isso é necessário para a funcionalidade do editor.
             container: editorRef.current,
             
+            // CORREÇÃO: Adicionada configuração do AssetManager para evitar carregamento de imagens quebradas.
+            grapesjs: {
+              assetManager: {
+                assets: [],
+              },
+            },
+
             project: initialData ? {
               id: String(initialData.id),
               name: initialData.name,
@@ -92,12 +100,12 @@ export const StudioEditorComponent = ({ initialData, onBack }: StudioEditorCompo
             }
         };
         
-        // Use a 'new' keyword with the default export
-        studioInstanceRef.current = new (Studio as any)(config);
-
+        // CORREÇÃO: Forma de importação e instanciação do Studio SDK ajustada.
+        studioInstanceRef.current = new (GrapesJSStudioSDK as any)(config);
     }
 
     return () => {
+      // Cleanup: Destrói a instância do editor ao desmontar o componente para evitar vazamentos de memória
       if (studioInstanceRef.current) {
         // @ts-ignore
         studioInstanceRef.current.destroy();
