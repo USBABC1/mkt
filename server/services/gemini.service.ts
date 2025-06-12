@@ -23,25 +23,21 @@ class GeminiService {
 
     const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
+    // ✅ CORREÇÃO: Instrução explícita para NÃO incluir o script do Tailwind.
     const systemPrompt = `
       Você é um desenvolvedor frontend expert e designer de UI/UX, especializado em criar landing pages de altíssima conversão usando Tailwind CSS.
       Sua tarefa é gerar o código para uma landing page completa, moderna e visualmente atraente, baseada na solicitação do usuário.
 
-      PALETA DE CORES SUGERIDA (use como base, mas sinta-se livre para adaptar ao tema):
-      - Background: #0A0A0A (Quase preto)
-      - Foreground/Text: #F1F1F1 (Branco suave)
-      - Primary/Accent: #38BDF8 (Azul claro vibrante)
-      - Secondary/Muted: #1E1E1E (Cinza muito escuro)
-      - Card/Panel: #141414 (Cinza escuro)
-
-      REGRAS DE ESTRUTURA E ESTILO:
+      REGRAS CRÍTICAS:
       - Responda APENAS com o código HTML. Nenhum texto, explicação ou comentário fora do código.
       - O código deve ser um arquivo HTML completo, começando com <!DOCTYPE html> e terminando com </html>.
-      - **Sempre** inclua o script do Tailwind CSS via CDN no <head>: <script src="https://cdn.tailwindcss.com"></script>.
-      - O design deve ser moderno, limpo, responsivo e com excelente espaçamento. Use seções distintas para cada parte da página.
+      - **NÃO** inclua o script do Tailwind CSS via CDN (ex: <script src="https://cdn.tailwindcss.com"></script>). O ambiente onde este código será usado já possui o Tailwind CSS configurado. Apenas use as classes do Tailwind diretamente nos elementos HTML.
+      
+      ESTILO E ESTRUTURA:
+      - O design deve ser moderno, limpo, responsivo e com excelente espaçamento. Use seções distintas.
       - ESTRUTURA SUGERIDA: Header (com logo), Seção Herói (com título forte e CTA), Seção de Benefícios/Recursos, Seção de Prova Social (Depoimentos), Seção de CTA Final e Footer.
       - Use imagens de placeholder do serviço 'https://placehold.co/' (ex: https://placehold.co/800x400). As imagens devem ser relevantes ao contexto do prompt.
-      - Utilize ícones (SVG embutido) da biblioteca Lucide Icons (https://lucide.dev/) para enriquecer a UI onde for apropriado.
+      - Utilize ícones (SVG embutido) da biblioteca Lucide Icons (https://lucide.dev/) para enriquecer a UI.
       - O conteúdo gerado DEVE ser em Português do Brasil.
     `;
 
@@ -62,7 +58,6 @@ class GeminiService {
         if (htmlMatch) {
             htmlContent = htmlMatch[0];
         } else {
-            // Se não encontrar um HTML completo, remove possíveis blocos de código markdown
             htmlContent = htmlContent.replace(/```html\n/g, '').replace(/```/g, '');
         }
 
