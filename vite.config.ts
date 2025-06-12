@@ -1,16 +1,16 @@
-// vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from 'node:url';
-
-// Plugins específicos do Replit (ou ambiente similar)
-// import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal"; 
+// ✅ CORREÇÃO: Plugin tailwindcss removido, pois usaremos postcss.config.cjs
+// import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ command, mode }) => {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
   const plugins = [
     react(),
-    // runtimeErrorOverlay(),
+    // tailwindcss(), // ✅ CORREÇÃO: Linha removida
   ];
 
   if (mode !== "production" && process.env.REPL_ID) {
@@ -25,14 +25,12 @@ export default defineConfig(({ command, mode }) => {
       .catch(e => console.warn("@replit/vite-plugin-cartographer not found or failed to load, skipping.", e));
   }
   
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
   return {
+    root: path.resolve(__dirname, "client"),
     plugins: plugins,
     define: {
       'import.meta.env.VITE_FORCE_AUTH_BYPASS': JSON.stringify(process.env.VITE_FORCE_AUTH_BYPASS || process.env.FORCE_AUTH_BYPASS || 'false'),
       'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || process.env.APP_BASE_URL || ''),
-      // ✅ CORREÇÃO: Expondo a Google Client ID para o frontend
       'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || ''),
     },
     resolve: {
@@ -44,11 +42,14 @@ export default defineConfig(({ command, mode }) => {
         "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
       },
     },
-    root: path.resolve(__dirname, "client"),
     build: {
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true, 
-      rollupOptions: {},
+      rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'client', 'index.html'),
+        },
+      },
     },
     optimizeDeps: {
       include: [
