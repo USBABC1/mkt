@@ -74,6 +74,7 @@
     "googleapis": "^140.0.1",
     "grapesjs": "^0.21.10",
     "grapesjs-preset-webpage": "^1.0.3",
+    "grapesjs-tailwind": "^1.0.2",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",
