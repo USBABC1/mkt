@@ -12,11 +12,10 @@ import { handleMCPConversation } from "./mcp_handler";
 import { googleDriveService } from './services/google-drive.service';
 import { geminiService } from './services/gemini.service';
 import { setupMulter } from "./multer.config";
-import { WhatsappConnectionService } from "./services/whatsapp-connection.service";
 import path from "path";
 import fs from "fs";
 import axios from "axios";
-
+import { whatsappRouter } from './api/whatsapp.routes'; // ✅ IMPORTAÇÃO DA NOVA ROTA
 
 export interface AuthenticatedRequest extends Request {
   user?: schemaShared.User;
@@ -68,15 +67,6 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
       console.error(err);
       res.status(err.statusCode || 500).json({ error: err.message || "Erro interno do servidor." });
     };
-
-    const whatsappServiceInstances = new Map<number, WhatsappConnectionService>();
-    function getWhatsappServiceForUser(userId: number): WhatsappConnectionService {
-        if (!whatsappServiceInstances.has(userId)) {
-            whatsappServiceInstances.set(userId, new WhatsappConnectionService(userId));
-        }
-        return whatsappServiceInstances.get(userId)!;
-    }
-
 
     // --- ROTAS PÚBLICAS E DE AUTENTICAÇÃO ---
     publicRouter.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
@@ -134,6 +124,9 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     // --- ROTAS PROTEGIDAS ---
     apiRouter.use(authenticateToken);
     
+    // ✅ ROTA DO WHATSAPP MOVIDA E SENDO USADA AQUI
+    apiRouter.use('/whatsapp', whatsappRouter);
+    
     apiRouter.get('/users', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getAllUsers()); } catch(e) { next(e); }});
     apiRouter.get('/dashboard', async (req: AuthenticatedRequest, res, next) => { try { const timeRange = req.query.timeRange as string | undefined; res.json(await storage.getDashboardData(req.user!.id, timeRange)); } catch (e) { next(e); }});
     
@@ -174,14 +167,14 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     apiRouter.post('/landingpages/optimize', async (req: AuthenticatedRequest, res, next) => { try { const { html, goals } = req.body; if (!html) return res.status(400).json({ error: 'O conteúdo HTML é obrigatório para otimização.' }); const optimizedHtml = await geminiService.optimizeLandingPage(html, goals); res.json({ htmlContent: optimizedHtml }); } catch (e) { next(e); }});
     apiRouter.post('/assets/lp-upload', lpAssetUpload.array('files'), (req: AuthenticatedRequest, res, next) => { try { if (!req.files || !Array.isArray(req.files) || req.files.length === 0) return res.status(400).json({ error: "Nenhum arquivo enviado." }); const urls = req.files.map(file => `${APP_BASE_URL}/${UPLOADS_DIR_NAME}/lp-assets/${file.filename}`); res.status(200).json(urls); } catch(e){ next(e); }});
 
-    // ✅ ROTAS DE FUNIL ADICIONADAS
+    // Rotas de Funil
     apiRouter.get('/funnels', async (req: AuthenticatedRequest, res, next) => { try { const campaignIdQuery = req.query.campaignId as string | undefined; const campaignId = campaignIdQuery === 'null' ? null : (campaignIdQuery ? parseInt(campaignIdQuery) : undefined); res.json(await storage.getFunnels(req.user!.id, campaignId)); } catch (e) { next(e); }});
     apiRouter.get('/funnels/:id', async (req: AuthenticatedRequest, res, next) => { try { const funnel = await storage.getFunnel(parseInt(req.params.id), req.user!.id); if (!funnel) return res.status(404).json({ error: 'Funil não encontrado.'}); res.json(funnel); } catch(e) { next(e); }});
     apiRouter.post('/funnels', async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertFunnelSchema.parse(req.body); const newFunnel = await storage.createFunnel(data, req.user!.id); res.status(201).json(newFunnel); } catch (e) { next(e); } });
     apiRouter.put('/funnels/:id', async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertFunnelSchema.partial().parse(req.body); const updated = await storage.updateFunnel(parseInt(req.params.id), data, req.user!.id); if (!updated) return res.status(404).json({ error: "Funil não encontrado."}); res.json(updated); } catch (e) { next(e); } });
     apiRouter.delete('/funnels/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteFunnel(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch (e) { next(e); } });
     apiRouter.post('/funnels/:funnelId/stages', async (req: AuthenticatedRequest, res, next) => { try { const funnel = await storage.getFunnel(parseInt(req.params.funnelId), req.user!.id); if (!funnel) return res.status(404).json({ error: "Funil não encontrado." }); const data = schemaShared.insertFunnelStageSchema.parse({ ...req.body, funnelId: funnel.id }); const newStage = await storage.createFunnelStage(data); res.status(201).json(newStage); } catch(e) { next(e); }});
-
+    
     // Rotas do MCP (ubie)
     apiRouter.post('/mcp/converse', async (req: AuthenticatedRequest, res, next) => { try { const { message, sessionId, attachmentUrl } = req.body; const payload = await handleMCPConversation(req.user!.id, message, sessionId, attachmentUrl); res.json(payload); } catch(e) { next(e); }});
     apiRouter.post('/mcp/upload-attachment', mcpAttachmentUpload.single('attachment'), (req: AuthenticatedRequest, res, next) => { try { if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." }); const publicUrl = `${APP_BASE_URL}/${UPLOADS_DIR_NAME}/mcp-attachments/${req.file.filename}`; res.status(200).json({ url: publicUrl }); } catch (e) { next(e); } });
@@ -192,17 +185,12 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     apiRouter.get('/chat/sessions/:sessionId/messages', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getChatMessages(parseInt(req.params.sessionId), req.user!.id)); } catch(e){ next(e); }});
     apiRouter.put('/chat/sessions/:sessionId/title', async (req: AuthenticatedRequest, res, next) => { try { const updated = await storage.updateChatSessionTitle(parseInt(req.params.sessionId), req.user!.id, req.body.title); res.json(updated); } catch(e){ next(e); }});
     apiRouter.delete('/chat/sessions/:sessionId', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteChatSession(parseInt(req.params.sessionId), req.user!.id); res.status(204).send(); } catch(e){ next(e); }});
-
-    // ✅ ROTAS DE ALERTA CORRIGIDAS/ADICIONADAS
+    
+    // Rotas de Alertas
     apiRouter.get('/alerts', async (req: AuthenticatedRequest, res, next) => { try { const onlyUnread = req.query.unread === 'true'; res.json(await storage.getAlerts(req.user!.id, onlyUnread)); } catch (e) { next(e); } });
     apiRouter.put('/alerts/:id/read', async (req: AuthenticatedRequest, res, next) => { try { const alert = await storage.markAlertAsRead(parseInt(req.params.id), req.user!.id); res.json(alert); } catch (e) { next(e); } });
     apiRouter.patch('/alerts/read-all', async (req: AuthenticatedRequest, res, next) => { try { await storage.markAllAlertsAsRead(req.user!.id); res.status(204).send(); } catch (e) { next(e); } });
-
-    // Rotas do WhatsApp
-    apiRouter.get('/whatsapp/status', (req: AuthenticatedRequest, res) => res.json(WhatsappConnectionService.getStatus(req.user!.id)));
-    apiRouter.post('/whatsapp/connect', async (req: AuthenticatedRequest, res, next) => { try { getWhatsappServiceForUser(req.user!.id).connectToWhatsApp(); res.status(202).json({ message: "Iniciando conexão..." }); } catch (e) { next(e); } });
-    apiRouter.post('/whatsapp/disconnect', async (req: AuthenticatedRequest, res, next) => { try { await getWhatsappServiceForUser(req.user!.id).disconnectWhatsApp(); res.json({ message: "Desconexão solicitada." }); } catch (e) { next(e); } });
-
+    
     // --- REGISTRO DOS ROUTERS ---
     app.use('/api', publicRouter, apiRouter);
     app.use(handleZodError);
