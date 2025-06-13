@@ -1,7 +1,6 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
-import { Terminal, AlertTriangle } from "lucide-react" // "AlertTriangle" foi adicionado aqui
-
+import { Terminal, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
