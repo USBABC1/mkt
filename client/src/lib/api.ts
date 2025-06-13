@@ -3,7 +3,7 @@ import { hc } from 'hono/client';
 import type { AppType } from '../../../server/routes'; // Ajuste o caminho se necessário
 
 // Helper para obter a URL da API do ambiente
-const getApiUrl = (): string => {
+export const getApiUrl = (): string => { // <-- ADICIONADO "export" AQUI
   return import.meta.env.VITE_API_URL || '';
 };
 
@@ -21,8 +21,6 @@ export async function apiRequest(
   data?: unknown,
   isFormData: boolean = false
 ): Promise<Response> {
-  // A lógica original pode ser mantida ou adaptada se necessário
-  // Para novas chamadas, prefira usar o objeto 'api' exportado acima
   const fullApiUrl = `${getApiUrl()}${url.startsWith('/') ? url : `/${url}`}`;
 
   const headers: Record<string, string> = {};
@@ -30,13 +28,6 @@ export async function apiRequest(
   if (!isFormData && data) {
     headers['Content-Type'] = 'application/json';
   }
-  
-  // A lógica de autenticação (token) precisa ser adicionada aqui se o cliente Hono não a gerenciar
-  // Exemplo:
-  // const { token } = useAuthStore.getState();
-  // if (token) {
-  //   headers['Authorization'] = `Bearer ${token}`;
-  // }
 
   let body;
   if (isFormData && data instanceof FormData) {
@@ -54,7 +45,6 @@ export async function apiRequest(
   });
 
   if (!response.ok) {
-    // ... (tratamento de erro original)
     throw new Error(`API Error: ${response.status}`);
   }
 
@@ -82,8 +72,6 @@ export async function uploadFile(
   
     const headers: Record<string, string> = {};
   
-    // A lógica de autenticação (token) precisa ser adicionada aqui
-  
     const response = await fetch(fullApiUrl, {
       method: method,
       headers,
@@ -91,7 +79,6 @@ export async function uploadFile(
     });
   
     if (!response.ok) {
-        // ... (tratamento de erro original)
         throw new Error(`Upload Error: ${response.status}`);
     }
   
