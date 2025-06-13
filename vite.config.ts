@@ -39,7 +39,7 @@ export default defineConfig(({ command, mode }) => {
         "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
       },
     },
-    build: {
+    build.rollupOptions.input
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true,
       // Remove the external configuration - let Vite handle bundling
