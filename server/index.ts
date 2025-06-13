@@ -1,72 +1,91 @@
-import express, { type ErrorRequestHandler } from 'express';
-import cors from 'cors';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { ZodError } from 'zod';
+// server/index.ts
+import dotenv from "dotenv";
+dotenv.config();
 
-// Importando nossos módulos de rotas
-import authRoutes from './routes/auth.routes';
-import landingPageRoutes from './routes/landingpage.routes';
-import campaignRoutes from './routes/campaign.routes';
-import assetRoutes from './routes/asset.routes';
-import chatRoutes from './routes/chat.routes';
-import whatsappRoutes from './routes/whatsapp.routes';
-import coreRoutes from './routes/core.routes';
+import express, { type Request, Response, NextFunction } from "express";
+import { RouterSetup } from "./routes";
+import { setupVite, serveStatic, log as serverLog } from "./vite";
+import path from 'path';
+import fs from 'fs';
+import { UPLOADS_DIR_NAME, UPLOADS_PATH } from "./config";
+import { startCronJobs } from "./services/cron.service"; // ✅ IMPORTADO
 
 const app = express();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// O caminho correto para a pasta 'public' que o Vite cria dentro de 'dist'
-const publicPath = path.join(__dirname, 'public');
+// ✅ Garantir que o diretório de uploads exista no disco persistente
+if (!fs.existsSync(UPLOADS_PATH)) {
+    fs.mkdirSync(UPLOADS_PATH, { recursive: true });
+    serverLog(`[ServerInit] Criado diretório de uploads em: ${UPLOADS_PATH}`, 'server-init');
+}
 
-// --- MIDDLEWARES GLOBAIS ---
-app.use(cors()); 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-// 1. Servir todos os arquivos estáticos (CSS, JS, imagens) da pasta public
-app.use(express.static(publicPath));
-
-// 2. REGISTRO DAS ROTAS DA API
-// Todas as requisições para /api/... serão tratadas pelos nossos roteadores
-app.use('/api', authRoutes);
-app.use('/api', coreRoutes);
-app.use('/api', campaignRoutes);
-app.use('/api', landingPageRoutes);
-app.use('/api', assetRoutes);
-app.use('/api', chatRoutes);
-app.use('/api', whatsappRoutes);
-
-
-// 3. ROTA "CATCH-ALL" PARA O APP REACT
-// Qualquer outra requisição GET que não seja para um arquivo estático ou para a API,
-// deve servir o index.html principal. Isso permite que o React Router funcione.
-app.get('*', (req, res) => {
-  res.sendFile(path.join(publicPath, 'index.html'));
+// ✅ Middleware para definir o cabeçalho de política de recursos
+app.use(`/${UPLOADS_DIR_NAME}`, (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
 });
 
+// ✅ Servir a pasta de uploads estaticamente usando o caminho absoluto
+app.use(`/${UPLOADS_DIR_NAME}`, express.static(UPLOADS_PATH));
+serverLog(`[StaticServing] Servindo uploads de usuários a partir de /${UPLOADS_DIR_NAME} mapeado para ${UPLOADS_PATH}`, 'server-init');
 
-// --- MIDDLEWARES DE TRATAMENTO DE ERRO ---
-const handleZodError: ErrorRequestHandler = (err, req, res, next) => {
-    if (err instanceof ZodError) {
-        return res.status(400).json({ error: "Erro de validação.", details: err.errors });
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  const originalResJson = res.json;
+  res.json = function (bodyJson: any, ...args: any[]) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(this, [bodyJson, ...args as any]);
+  };
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path.startsWith("/api")) {
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse && Object.keys(capturedJsonResponse).length > 0) {
+        const summary = JSON.stringify(capturedJsonResponse).substring(0, 100);
+        logLine += ` :: ${summary}${summary.length === 100 ? '...' : ''}`;
+      }
+      if (logLine.length > 180) { logLine = logLine.slice(0, 179) + "…"; }
+      serverLog(logLine, 'api-server');
     }
-    next(err);
-};
-
-const handleError: ErrorRequestHandler = (err, req, res, next) => {
-    console.error(err);
-    const statusCode = err.statusCode || 500;
-    const message = err.message || "Erro interno do servidor.";
-    res.status(statusCode).json({ error: message });
-};
-
-app.use(handleZodError);
-app.use(handleError);
-
-
-// --- INICIALIZAÇÃO DO SERVIDOR ---
-const port = process.env.PORT || 4001;
-app.listen(port, () => {
-  console.log(`Servidor Express modular rodando na porta ${port}`);
+  });
+  next();
 });
+
+(async () => {
+  try {
+    const server = await RouterSetup.registerRoutes(app);
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      console.error("[GLOBAL_ERROR_HANDLER] Erro capturado:", err.message, err.stack ? `\nStack: ${err.stack}` : '');
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Erro interno do servidor.";
+      if (!res.headersSent) {
+        res.status(status).json({ error: message });
+      } else {
+        serverLog(`[GLOBAL_ERROR_HANDLER] Headers já enviados para ${status} ${message}`, 'error');
+      }
+    });
+
+    serverLog(`Environment: NODE_ENV=${process.env.NODE_ENV}, app.get("env")=${app.get("env")}`, 'server-init');
+    if (process.env.NODE_ENV === "development") {
+      serverLog(`[ViteDev] Configurando Vite em modo de desenvolvimento...`, 'server-init');
+      await setupVite(app, server);
+    } else {
+      serverLog(`[StaticServing] Configurando para servir arquivos estáticos em produção...`, 'server-init');
+      serveStatic(app);
+    }
+    const port = process.env.PORT || 5000;
+    server.listen({ port, host: "0.0.0.0", }, () => {
+      serverLog(`Servidor HTTP iniciado e escutando na porta ${port} em modo ${process.env.NODE_ENV || 'development'}`, 'server-init');
+      // ✅ INICIA OS CRON JOBS
+      startCronJobs();
+    });
+  } catch (error) {
+    console.error("Falha crítica ao iniciar o servidor:", error);
+    process.exit(1);
+  }
+})();
