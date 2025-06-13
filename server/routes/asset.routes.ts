@@ -12,15 +12,25 @@ import { setupMulter } from "../multer.config";
 import { UPLOADS_PATH, APP_BASE_URL } from '../config';
 
 const router = Router();
-const { creativesUpload } = setupMulter(UPLOADS_PATH);
+// Agora configuramos os dois tipos de upload que este módulo usa
+const { creativesUpload, lpAssetUpload } = setupMulter(UPLOADS_PATH);
 const UPLOADS_DIR_NAME = path.basename(UPLOADS_PATH);
 const CREATIVES_ASSETS_DIR = path.join(UPLOADS_PATH, 'creatives-assets');
 
 // Todas as rotas neste arquivo também exigem autenticação.
 router.use(authenticateToken);
 
-// --- Rotas de Criativos (Creatives) ---
+// --- Rota de Assets para Landing Pages (GrapesJS) - ROTA ADICIONADA ---
+router.post('/assets/lp-upload', lpAssetUpload.array('files'), asyncHandler((req, res) => {
+    if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+        return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    }
+    const urls = req.files.map(file => `${APP_BASE_URL}/${UPLOADS_DIR_NAME}/lp-assets/${file.filename}`);
+    res.status(200).json(urls);
+}));
 
+// --- Rotas de Criativos (Creatives) ---
+// (O resto do arquivo continua o mesmo da etapa anterior)
 router.get('/creatives', asyncHandler(async (req: AuthenticatedRequest, res) => {
     const campaignIdQuery = req.query.campaignId as string;
     const campaignId = campaignIdQuery === 'null' ? null : (campaignIdQuery ? parseInt(campaignIdQuery) : undefined);
@@ -28,12 +38,11 @@ router.get('/creatives', asyncHandler(async (req: AuthenticatedRequest, res) => 
     res.json(creatives);
 }));
 
-// A rota de POST usa o middleware 'creativesUpload' para processar o upload do arquivo ANTES da lógica da rota.
 router.post('/creatives', creativesUpload.single('file'), asyncHandler(async (req: AuthenticatedRequest, res) => {
     const data = schemaShared.insertCreativeSchema.parse(req.body);
     if (req.file) {
         data.fileUrl = `${APP_BASE_URL}/${UPLOADS_DIR_NAME}/creatives-assets/${req.file.filename}`;
-        data.thumbnailUrl = data.fileUrl; // Simplificação, pode ser melhorado
+        data.thumbnailUrl = data.fileUrl;
     }
     const creative = await storage.createCreative({ ...data, userId: req.user!.id });
     res.status(201).json(creative);
@@ -62,7 +71,6 @@ router.delete('/creatives/:id', asyncHandler(async (req: AuthenticatedRequest, r
 }));
 
 // --- Rotas de Criativos (Google Drive) ---
-
 router.get('/creatives/from-drive/:folderId', asyncHandler(async (req, res) => {
     const files = await googleDriveService.listFilesFromFolder(req.params.folderId);
     res.json(files);
@@ -98,7 +106,6 @@ router.post('/creatives/import-from-drive', asyncHandler(async (req: Authenticat
 
 
 // --- Rotas de Copies ---
-
 router.get('/copies', asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { campaignId, phase, purpose, search } = req.query;
     const copies = await storage.getCopies(req.user!.id, campaignId ? Number(campaignId) : undefined, phase as string, purpose as string, search as string);
@@ -115,5 +122,6 @@ router.delete('/copies/:id', asyncHandler(async (req: AuthenticatedRequest, res)
     await storage.deleteCopy(parseInt(req.params.id), req.user!.id);
     res.status(204).send();
 }));
+
 
 export default router;
