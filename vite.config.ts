@@ -64,11 +64,12 @@ export default defineConfig(({ command, mode }) => {
         '.all-hands.dev', '.prod-runtime.all-hands.dev'
       ],
     },
-    // Help Vite handle the GrapesJS packages
+    // Help Vite handle the GrapesJS and Hono packages
     optimizeDeps: {
       include: [
         '@grapesjs/studio-sdk',
-        '@grapesjs/studio-sdk-plugins'
+        '@grapesjs/studio-sdk-plugins',
+        'hono/client' // <-- ADICIONE ESTA LINHA
       ],
     },
   };
