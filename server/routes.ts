@@ -15,7 +15,8 @@ import path from "path";
 import fs from "fs";
 import axios from "axios";
 import { whatsappRouter } from './api/whatsapp.routes';
-import { publicLpRouter, protectedLpRouter, setupLpAssetUpload } from './api/landingpages.routes'; // ✅ IMPORTAÇÃO DAS NOVAS ROTAS
+import { publicLpRouter, protectedLpRouter, setupLpAssetUpload } from './api/landingpages.routes';
+import { campaignsRouter, tasksRouter } from "./api/campaigns.routes"; // ✅ IMPORTAÇÃO DAS NOVAS ROTAS
 
 export interface AuthenticatedRequest extends Request {
   user?: schemaShared.User;
@@ -33,7 +34,6 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     const apiRouter = express.Router();
     const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
     
-    // ✅ SETUP DA ROTA DE UPLOAD DE ASSETS DA LP
     setupLpAssetUpload(lpAssetUpload);
     
     const authenticateToken = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -113,9 +113,7 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
       }
     });
     
-    // ✅ ROTAS PÚBLICAS DA LANDING PAGE
     publicRouter.use('/landingpages', publicLpRouter);
-
 
     // --- ROTAS PROTEGIDAS ---
     apiRouter.use(authenticateToken);
@@ -123,24 +121,12 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     // ✅ REGISTRO DOS MÓDULOS DE ROTAS
     apiRouter.use('/whatsapp', whatsappRouter);
     apiRouter.use('/landingpages', protectedLpRouter);
-    // A rota de upload de assets '/api/assets/lp-upload' agora é gerenciada pelo 'protectedLpRouter'
+    apiRouter.use('/campaigns', campaignsRouter);
+    apiRouter.use('/tasks', tasksRouter);
     
     apiRouter.get('/users', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getAllUsers()); } catch(e) { next(e); }});
     apiRouter.get('/dashboard', async (req: AuthenticatedRequest, res, next) => { try { const timeRange = req.query.timeRange as string | undefined; res.json(await storage.getDashboardData(req.user!.id, timeRange)); } catch (e) { next(e); }});
     
-    // Rota de Campanhas
-    apiRouter.get('/campaigns', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getCampaigns(req.user!.id)); } catch (e) { next(e); }});
-    apiRouter.post('/campaigns', async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertCampaignSchema.parse(req.body); res.status(201).json(await storage.createCampaign({ ...data, userId: req.user!.id })); } catch (e) { next(e); }});
-    apiRouter.get('/campaigns/:id', async (req: AuthenticatedRequest, res, next) => { try { const campaign = await storage.getCampaignWithDetails(parseInt(req.params.id), req.user!.id); if (!campaign) return res.status(404).json({ error: 'Campanha não encontrada.'}); res.json(campaign); } catch(e) { next(e); }});
-    apiRouter.put('/campaigns/:id', async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertCampaignSchema.partial().parse(req.body); const updated = await storage.updateCampaign(parseInt(req.params.id), req.user!.id, data); if (!updated) return res.status(404).json({ error: "Campanha não encontrada."}); res.json(updated); } catch (e) { next(e); } });
-    apiRouter.delete('/campaigns/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteCampaign(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch (e) { next(e); } });
-    apiRouter.post('/campaigns/from-template/:templateId', async (req: AuthenticatedRequest, res, next) => { try { const templateId = parseInt(req.params.templateId, 10); const data = schemaShared.insertCampaignSchema.parse(req.body); const newCampaign = await storage.createCampaignFromTemplate({ ...data, userId: req.user!.id }, templateId); res.status(201).json(newCampaign); } catch (e) { next(e); } });
-    
-    // Rota de Tarefas
-    apiRouter.post('/campaigns/:campaignId/tasks', async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertCampaignTaskSchema.parse(req.body); const task = await storage.createTask(data); res.status(201).json(task); } catch (e) { next(e); } });
-    apiRouter.put('/tasks/:taskId', async (req: AuthenticatedRequest, res, next) => { try { const taskId = parseInt(req.params.taskId, 10); const data = schemaShared.insertCampaignTaskSchema.partial().parse(req.body); const task = await storage.updateTask(taskId, data); res.json(task); } catch(e) { next(e); } });
-    apiRouter.delete('/tasks/:taskId', async (req: AuthenticatedRequest, res, next) => { try { const taskId = parseInt(req.params.taskId, 10); await storage.deleteTask(taskId); res.status(204).send(); } catch (e) { next(e); } });
-
     // Rota de Criativos
     apiRouter.get('/creatives', async (req: AuthenticatedRequest, res, next) => { try { const campaignIdQuery = req.query.campaignId as string; const campaignId = campaignIdQuery === 'null' ? null : (campaignIdQuery ? parseInt(campaignIdQuery) : undefined); res.json(await storage.getCreatives(req.user!.id, campaignId)); } catch (e) { next(e); }});
     apiRouter.post('/creatives', creativesUpload.single('file'), async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertCreativeSchema.parse(req.body); if (req.file) { data.fileUrl = `${APP_BASE_URL}/${UPLOADS_DIR_NAME}/creatives-assets/${req.file.filename}`; data.thumbnailUrl = data.fileUrl; } const creative = await storage.createCreative({ ...data, userId: req.user!.id }); res.status(201).json(creative); } catch (e) { next(e); } });
