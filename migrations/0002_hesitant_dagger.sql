@@ -91,3 +91,8 @@ BEGIN
     END IF;
 END
 $$;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'integrations_user_id_users_id_fk') THEN
+ALTER TABLE "public"."landing_pages" ADD COLUMN "generation_options" jsonb;    END IF;
+END
+$$;
