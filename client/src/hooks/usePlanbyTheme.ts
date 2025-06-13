@@ -1,37 +1,48 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   ThemeType,
   useTheme as usePlanbyThemeMode,
+  Epg,
+  Channel,
 } from "@planby/core";
 import { useTheme } from "next-themes";
-import { epg, channels } from "@/lib/planbyData"; // Assumindo que este arquivo exporta os dados necessários
+// Em uma aplicação real, estes dados viriam de uma API.
+import { epg as initialEpg, channels as initialChannels } from "@/lib/planbyData";
 
 export function useApp() {
   const { theme: mode } = useTheme();
 
+  // Mantém os dados do agendamento no estado do React.
+  const [channels] = useState<Channel[]>(initialChannels);
+  const [epg, setEpg] = useState<Epg>(initialEpg);
+
   const theme = useMemo<ThemeType>(
     () => ({
       ...usePlanbyThemeMode(mode as "light" | "dark"),
-      // ... (outras personalizações do tema, se houver)
+      // Aqui você pode adicionar outras personalizações de tema se necessário
+      // Ex: sidebar: { ... }, program: { ... }
     }),
     [mode]
   );
-  
-  // ✅ CORREÇÃO: A propriedade 'campaignsChange' estava a faltar.
-  // Adicionamos um objeto com uma função vazia para satisfazer o componente 
-  // que espera por esta propriedade. Isso evita o erro 'cannot read properties of undefined'.
-  const campaignsChange = {
-    // Esta é uma função de placeholder. Se a biblioteca precisar de uma lógica real,
-    // ela precisará ser implementada aqui. Por agora, isso resolve o erro.
-    onCampaignsChange: () => {},
-  };
 
+  /**
+   * ✅ CORREÇÃO: Implementação da função que faltava.
+   * A biblioteca de agendamento precisa de uma função para lidar com
+   * mudanças nos "programas" (quando um utilizador arrasta ou redimensiona um item).
+   * Esta função será passada para o componente principal do agendamento.
+   */
+  const handleCampaignsChange = useCallback((newEpg: Epg) => {
+    // Em uma aplicação real, aqui você faria uma chamada de API para salvar as alterações no banco de dados.
+    // Para este exemplo, apenas atualizamos o estado local para refletir a mudança na UI.
+    console.log("Os agendamentos (EPG) mudaram. Novo estado:", newEpg);
+    setEpg(newEpg);
+  }, []);
 
   return {
     theme,
     channels,
     epg,
-    // ✅ CORREÇÃO: Retornando o objeto que estava a faltar.
-    campaignsChange, 
+    // Retornando a função com o nome que o componente espera ('onCampaignsChange').
+    onCampaignsChange: handleCampaignsChange,
   };
 }
