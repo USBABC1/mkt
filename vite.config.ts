@@ -39,7 +39,8 @@ export default defineConfig(({ command, mode }) => {
         "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
       },
     },
-    build.rollupOptions.input
+    root: path.resolve(__dirname, "client"),
+    build: {
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true,
       // Remove the external configuration - let Vite handle bundling
@@ -63,13 +64,11 @@ export default defineConfig(({ command, mode }) => {
         '.all-hands.dev', '.prod-runtime.all-hands.dev'
       ],
     },
-    // Help Vite handle the GrapesJS and Hono packages
+    // Help Vite handle the GrapesJS packages
     optimizeDeps: {
       include: [
         '@grapesjs/studio-sdk',
-        '@grapesjs/studio-sdk-plugins',
-        'hono/client',
-        'class-variance-authority'
+        '@grapesjs/studio-sdk-plugins'
       ],
     },
   };
