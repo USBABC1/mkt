@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Label } from '@/components/ui/label'; // Adicionado Label
 import { Slider } from '@/components/ui/slider'; // Adicionado Slider
-import { Users, MousePointer, ShoppingCart, CreditCard, TrendingUp, Plus, Edit, Trash2, Loader2, AlertTriangle, Link as LinkIcon, Filter as FilterIcon, BarChartHorizontalBig, Settings, Percent, ShoppingBag, DollarSign as DollarSignIcon } from 'lucide-react'; // Adicionado mais icones
+import { Users, MousePointer, ShoppingCart, CreditCard, TrendingUp, Plus, Edit, Trash2, Loader2, BadgeAlert, Link as LinkIcon, Filter as FilterIcon, BarChartHorizontalBig, Settings, Percent, ShoppingBag, DollarSign as DollarSignIcon } from 'lucide-react'; // Adicionado mais icones
 import { ResponsiveContainer, FunnelChart, Funnel as RechartsFunnel, Tooltip as RechartsTooltip, LabelList, Cell } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/api';
@@ -225,7 +225,7 @@ export default function FunnelPage() {
 
   // Renderização Principal
   if (isLoadingFunnels) return <div className="p-8 text-center"><Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" /> Carregando funis...</div>;
-  if (funnelsError) return <div className="p-8 text-center text-destructive"><AlertTriangle className="h-12 w-12 mx-auto mb-2" />Erro: {funnelsError.message}<Button onClick={() => refetchFunnelsList()} className="mt-4">Tentar Novamente</Button></div>;
+  if (funnelsError) return <div className="p-8 text-center text-destructive"><BadgeAlert className="h-12 w-12 mx-auto mb-2" />Erro: {funnelsError.message}<Button onClick={() => refetchFunnelsList()} className="mt-4">Tentar Novamente</Button></div>;
 
   const selectedCampaignNameForSavedFunnel = selectedFunnelData?.campaignId
     ? campaignsList.find(c => c.id === selectedFunnelData.campaignId)?.name
@@ -291,7 +291,7 @@ export default function FunnelPage() {
           </Card>
 
           {isLoadingSelectedFunnel && selectedFunnelId && <div className="p-8 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /> Carregando...</div>}
-          {selectedFunnelError && <Card className="border-destructive bg-destructive/10"><CardContent className="p-4 text-destructive flex items-center"><AlertTriangle className="h-5 w-5 mr-2" />Erro: {selectedFunnelError.message}</CardContent></Card>}
+          {selectedFunnelError && <Card className="border-destructive bg-destructive/10"><CardContent className="p-4 text-destructive flex items-center"><BadgeAlert className="h-5 w-5 mr-2" />Erro: {selectedFunnelError.message}</CardContent></Card>}
           
           {selectedFunnelData && !isLoadingSelectedFunnel && (
             <>
