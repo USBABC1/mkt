@@ -51,7 +51,7 @@ import {
   DollarSign as DollarSignIcon,
   CalendarDays,
   ExternalLink,
-  AlertTriangle,
+  BadgeAlert,
 } from 'lucide-react';
 
 // Hooks e Utils do SEU projeto
