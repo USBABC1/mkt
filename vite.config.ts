@@ -39,7 +39,6 @@ export default defineConfig(({ command, mode }) => {
         "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
       },
     },
-    root: path.resolve(__dirname, "client"),
     build: {
       outDir: path.resolve(__dirname, "dist/public"),
       emptyOutDir: true,
