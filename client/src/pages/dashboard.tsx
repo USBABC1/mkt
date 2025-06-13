@@ -150,7 +150,7 @@ export default function Dashboard() {
   if (error || !dashboardData) { // Adicionado !dashboardData para cobrir casos onde não há erro mas os dados são nulos
     return (
         <div className="p-8 text-center">
-        <BadgeAlert  className="w-16 h-16 text-destructive mx-auto mb-4" />
+        <BadgeAlert className="w-16 h-16 text-destructive mx-auto mb-4" />
         <h2 className="text-2xl font-semibold text-destructive mb-2">Erro ao carregar dados do Dashboard</h2>
         <p className="text-muted-foreground mb-4">
           {(error as Error)?.message || "Não foi possível buscar os dados para o dashboard."}
