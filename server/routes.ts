@@ -10,12 +10,12 @@ import { OAuth2Client } from 'google-auth-library';
 import { JWT_SECRET, UPLOADS_PATH, APP_BASE_URL, GOOGLE_CLIENT_ID } from './config';
 import { handleMCPConversation } from "./mcp_handler";
 import { googleDriveService } from './services/google-drive.service';
-import { geminiService } from './services/gemini.service';
 import { setupMulter } from "./multer.config";
 import path from "path";
 import fs from "fs";
 import axios from "axios";
-import { whatsappRouter } from './api/whatsapp.routes'; // ✅ IMPORTAÇÃO DA NOVA ROTA
+import { whatsappRouter } from './api/whatsapp.routes';
+import { publicLpRouter, protectedLpRouter, setupLpAssetUpload } from './api/landingpages.routes'; // ✅ IMPORTAÇÃO DAS NOVAS ROTAS
 
 export interface AuthenticatedRequest extends Request {
   user?: schemaShared.User;
@@ -24,7 +24,6 @@ export interface AuthenticatedRequest extends Request {
 async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     const { creativesUpload, lpAssetUpload, mcpAttachmentUpload } = setupMulter(UPLOADS_PATH);
     const UPLOADS_DIR_NAME = path.basename(UPLOADS_PATH);
-    const LP_ASSETS_DIR = path.join(UPLOADS_PATH, 'lp-assets');
     const CREATIVES_ASSETS_DIR = path.join(UPLOADS_PATH, 'creatives-assets');
 
     app.use(express.json({ limit: "10mb" }));
@@ -33,6 +32,9 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     const publicRouter = express.Router();
     const apiRouter = express.Router();
     const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+    
+    // ✅ SETUP DA ROTA DE UPLOAD DE ASSETS DA LP
+    setupLpAssetUpload(lpAssetUpload);
     
     const authenticateToken = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         if (process.env.FORCE_AUTH_BYPASS === 'true') {
@@ -110,22 +112,18 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
         next(new Error("Falha na autenticação com Google."));
       }
     });
-    publicRouter.get('/landingpages/slug/:slug', async (req, res, next) => {
-      try {
-        const lp = await storage.getLandingPageBySlug(req.params.slug);
-        if (!lp) return res.status(404).json({ error: 'Página não encontrada' });
-        res.json(lp);
-      } catch(e) {
-        next(e);
-      }
-    });
+    
+    // ✅ ROTAS PÚBLICAS DA LANDING PAGE
+    publicRouter.use('/landingpages', publicLpRouter);
 
 
     // --- ROTAS PROTEGIDAS ---
     apiRouter.use(authenticateToken);
     
-    // ✅ ROTA DO WHATSAPP MOVIDA E SENDO USADA AQUI
+    // ✅ REGISTRO DOS MÓDULOS DE ROTAS
     apiRouter.use('/whatsapp', whatsappRouter);
+    apiRouter.use('/landingpages', protectedLpRouter);
+    // A rota de upload de assets '/api/assets/lp-upload' agora é gerenciada pelo 'protectedLpRouter'
     
     apiRouter.get('/users', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getAllUsers()); } catch(e) { next(e); }});
     apiRouter.get('/dashboard', async (req: AuthenticatedRequest, res, next) => { try { const timeRange = req.query.timeRange as string | undefined; res.json(await storage.getDashboardData(req.user!.id, timeRange)); } catch (e) { next(e); }});
@@ -155,17 +153,6 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     apiRouter.get('/copies', async (req: AuthenticatedRequest, res, next) => { try { const { campaignId, phase, purpose, search } = req.query; res.json(await storage.getCopies(req.user!.id, campaignId ? Number(campaignId) : undefined, phase as string, purpose as string, search as string)); } catch (e) { next(e); } });
     apiRouter.post('/copies', async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertCopySchema.parse(req.body); res.status(201).json(await storage.createCopy({ ...data, userId: req.user!.id })); } catch (e) { next(e); } });
     apiRouter.delete('/copies/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteCopy(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch (e) { next(e); }});
-
-    // Rota de Landing Pages
-    apiRouter.get('/landingpages', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getLandingPages(req.user!.id)); } catch (e) { next(e); }});
-    apiRouter.post('/landingpages', async (req: AuthenticatedRequest, res, next) => {  try {  const { name } = req.body; const slugBase = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''); const finalSlug = await storage.generateUniqueSlug(slugBase); const lpData = schemaShared.insertLandingPageSchema.parse({ ...req.body, slug: finalSlug, }); const newLp = await storage.createLandingPage(lpData, req.user!.id); res.status(201).json(newLp); } catch(e){  next(e);  } });
-    apiRouter.post('/landingpages/preview-advanced', async (req: AuthenticatedRequest, res, next) => { try { const { prompt, reference, options } = req.body; if (!prompt) return res.status(400).json({ error: 'O prompt é obrigatório.' }); const generatedHtml = await geminiService.createAdvancedLandingPage(prompt, options || {}, reference); res.status(200).json({ htmlContent: generatedHtml }); } catch (e) { next(e); } });
-    apiRouter.get('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { const lp = await storage.getLandingPage(parseInt(req.params.id), req.user!.id); if (!lp) return res.status(404).json({ error: 'Página não encontrada.' }); res.json(lp); } catch (e) { next(e); } });
-    apiRouter.put('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { const lpData = schemaShared.insertLandingPageSchema.partial().parse(req.body); const updated = await storage.updateLandingPage(parseInt(req.params.id), lpData, req.user!.id); if (!updated) return res.status(404).json({ error: "Página não encontrada." }); res.json(updated); } catch(e){ next(e); }});
-    apiRouter.delete('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteLandingPage(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch(e){ next(e); }});
-    apiRouter.post('/landingpages/generate-variations', async (req: AuthenticatedRequest, res, next) => { try { const { prompt, count, options, reference } = req.body; if (!prompt) return res.status(400).json({ error: 'O prompt é obrigatório para gerar variações.' }); const variations = await geminiService.generateVariations(prompt, count || 2, options || {}, reference); res.json({ variations }); } catch (e) { next(e); }});
-    apiRouter.post('/landingpages/optimize', async (req: AuthenticatedRequest, res, next) => { try { const { html, goals } = req.body; if (!html) return res.status(400).json({ error: 'O conteúdo HTML é obrigatório para otimização.' }); const optimizedHtml = await geminiService.optimizeLandingPage(html, goals); res.json({ htmlContent: optimizedHtml }); } catch (e) { next(e); }});
-    apiRouter.post('/assets/lp-upload', lpAssetUpload.array('files'), (req: AuthenticatedRequest, res, next) => { try { if (!req.files || !Array.isArray(req.files) || req.files.length === 0) return res.status(400).json({ error: "Nenhum arquivo enviado." }); const urls = req.files.map(file => `${APP_BASE_URL}/${UPLOADS_DIR_NAME}/lp-assets/${file.filename}`); res.status(200).json(urls); } catch(e){ next(e); }});
 
     // Rotas de Funil
     apiRouter.get('/funnels', async (req: AuthenticatedRequest, res, next) => { try { const campaignIdQuery = req.query.campaignId as string | undefined; const campaignId = campaignIdQuery === 'null' ? null : (campaignIdQuery ? parseInt(campaignIdQuery) : undefined); res.json(await storage.getFunnels(req.user!.id, campaignId)); } catch (e) { next(e); }});
