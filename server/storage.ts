@@ -39,7 +39,6 @@ export class DatabaseStorage {
         });
     }
     
-    // ✅ NOVO MÉTODO ADICIONADO
     async searchCampaignsByName(userId: number, name: string): Promise<schema.Campaign[]> {
         return this.db.query.campaigns.findMany({
             where: and(
@@ -158,7 +157,7 @@ export class DatabaseStorage {
         await this.db.delete(schema.creatives).where(and(eq(schema.creatives.id, id), eq(schema.creatives.userId, userId)));
     }
     
-    // --- Métodos de Landing Pages ---
+    // --- Métodos de Landing Pages (CORRIGIDOS E COMPLETOS) ---
     async getLandingPages(userId: number): Promise<schema.LandingPage[]> {
         return this.db.query.landingPages.findMany({
             where: eq(schema.landingPages.userId, userId),
@@ -234,7 +233,6 @@ export class DatabaseStorage {
         return this.db.query.chatSessions.findMany({ where: eq(schema.chatSessions.userId, userId), orderBy: [desc(schema.chatSessions.updatedAt)] });
     }
 
-    // ✅ NOVO MÉTODO
     async getChatSession(sessionId: number, userId: number): Promise<schema.ChatSession | undefined> {
         return this.db.query.chatSessions.findFirst({ where: and(eq(schema.chatSessions.id, sessionId), eq(schema.chatSessions.userId, userId)) });
     }
@@ -245,7 +243,6 @@ export class DatabaseStorage {
     }
     
     async getChatMessages(sessionId: number, userId: number) {
-        // Validação para garantir que o usuário só possa ver suas próprias mensagens
         const session = await this.db.query.chatSessions.findFirst({ where: and(eq(schema.chatSessions.id, sessionId), eq(schema.chatSessions.userId, userId)) });
         if (!session) return [];
         return this.db.query.chatMessages.findMany({ where: eq(schema.chatMessages.sessionId, sessionId), orderBy: (schema.chatMessages.timestamp) });
@@ -317,7 +314,6 @@ export class DatabaseStorage {
     }
 
     // --- Métodos de Fluxo (WhatsApp) ---
-    // ✅ NOVO MÉTODO
     async getActiveFlow(userId: number): Promise<schema.Flow | undefined> {
         return this.db.query.flows.findFirst({
             where: and(
@@ -326,7 +322,7 @@ export class DatabaseStorage {
             )
         });
     }
-
+    
     // --- Métodos de Dashboard/Métricas ---
     async getDashboardData(userId: number, timeRange: string = '30d') {
         const days = parseInt(timeRange.replace('d', ''));
