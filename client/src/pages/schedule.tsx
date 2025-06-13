@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle } from '@/components/ui/alert';
-import { Calendar as CalendarIcon, Loader2, AlertTriangle, Plus, MoreVertical, Edit, Trash2, GanttChartSquare, Download } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, BadgeAlert , Plus, MoreVertical, Edit, Trash2, GanttChartSquare, Download } from 'lucide-react';
 import { FullCampaignData, CampaignTask as CampaignTaskType, InsertCampaignPhase } from '@shared/schema';
 import { format, parseISO, differenceInDays, addDays, subDays, isValid, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
