@@ -165,12 +165,20 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
 
     // Rota de Landing Pages
     apiRouter.get('/landingpages', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getLandingPages(req.user!.id)); } catch (e) { next(e); }});
+    
+    // ✅ ROTA CORRIGIDA: Recebe todos os dados, incluindo generationOptions, do frontend
     apiRouter.post('/landingpages', async (req: AuthenticatedRequest, res, next) => { 
       try { 
-        const { name, grapesJsData, generationOptions } = req.body;
+        const { name } = req.body;
         const slugBase = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         const finalSlug = await storage.generateUniqueSlug(slugBase);
-        const lpData = schemaShared.insertLandingPageSchema.parse({ ...req.body, slug: finalSlug, grapesJsData: grapesJsData || {}, generationOptions });
+        
+        // O corpo do request já deve conter todos os campos necessários
+        const lpData = schemaShared.insertLandingPageSchema.parse({
+          ...req.body,
+          slug: finalSlug,
+        });
+
         const newLp = await storage.createLandingPage(lpData, req.user!.id);
         res.status(201).json(newLp);
       } catch(e){ 
@@ -193,33 +201,28 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     apiRouter.put('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { const lpData = schemaShared.insertLandingPageSchema.partial().parse(req.body); const updated = await storage.updateLandingPage(parseInt(req.params.id), lpData, req.user!.id); if (!updated) return res.status(404).json({ error: "Página não encontrada." }); res.json(updated); } catch(e){ next(e); }});
     apiRouter.delete('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteLandingPage(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch(e){ next(e); }});
     
-    // ✅ ROTAS CORRIGIDAS: Para gerar variações e otimizar LPs usando o novo Gemini Service
-    apiRouter.post('/landingpages/:id/generate-variations', async (req: AuthenticatedRequest, res, next) => {
+    // ✅ ROTA CORRIGIDA: Não depende mais de um ID, recebe o prompt e as opções do corpo da requisição.
+    apiRouter.post('/landingpages/generate-variations', async (req: AuthenticatedRequest, res, next) => {
         try {
-            const lp = await storage.getLandingPage(parseInt(req.params.id), req.user!.id);
-            if (!lp) return res.status(404).json({ error: 'Página não encontrada.' });
-            
-            const prompt = lp.description || lp.name;
-            if (!prompt) return res.status(400).json({ error: 'A página não tem descrição ou nome para basear as variações.' });
-
-            const baseOptions = lp.generationOptions || {};
-            const count = req.body.count || 2; // Gera 2 variações por padrão
-
-            const variations = await geminiService.generateVariations(prompt, count, baseOptions);
+            const { prompt, count, options, reference } = req.body;
+            if (!prompt) {
+                return res.status(400).json({ error: 'O prompt é obrigatório para gerar variações.' });
+            }
+            const variations = await geminiService.generateVariations(prompt, count || 2, options || {}, reference);
             res.json({ variations });
         } catch (e) {
             next(e);
         }
     });
     
-    apiRouter.post('/landingpages/:id/optimize', async (req: AuthenticatedRequest, res, next) => {
+    // ✅ ROTA CORRIGIDA: Não depende mais de um ID, recebe o HTML e as metas de otimização do corpo.
+    apiRouter.post('/landingpages/optimize', async (req: AuthenticatedRequest, res, next) => {
         try {
-            const lp = await storage.getLandingPage(parseInt(req.params.id), req.user!.id);
-            if (!lp || !lp.grapesJsData?.html) return res.status(404).json({ error: 'Página ou seu conteúdo HTML não encontrado.' });
-            
-            const optimizationGoals = req.body.goals; // Permite que o front-end envie metas específicas
-
-            const optimizedHtml = await geminiService.optimizeLandingPage(lp.grapesJsData.html, optimizationGoals);
+            const { html, goals } = req.body;
+            if (!html) {
+                return res.status(400).json({ error: 'O conteúdo HTML é obrigatório para otimização.' });
+            }
+            const optimizedHtml = await geminiService.optimizeLandingPage(html, goals);
             res.json({ htmlContent: optimizedHtml });
         } catch (e) {
             next(e);
