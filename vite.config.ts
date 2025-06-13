@@ -7,9 +7,13 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // Define um alias para facilitar a importação de ficheiros
-      // a partir da pasta /client/src, para que você possa usar "@/components/..."
+      // Define um alias para a pasta /client/src, para que você possa usar "@/components/..."
       '@': path.resolve(__dirname, './client/src'),
+      
+      // ✅ CORREÇÃO: Adiciona um alias para a pasta 'shared'.
+      // Isto permite que o código do frontend (em 'client/') importe
+      // ficheiros da pasta 'shared/' usando '@shared/...', resolvendo o erro de build.
+      '@shared': path.resolve(__dirname, './shared'),
     },
   },
   server: {
