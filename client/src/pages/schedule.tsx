@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle } from '@/components/ui/alert';
-import { Calendar as CalendarIcon, Loader2, BadgeAlert , Plus, MoreVertical, Edit, Trash2, GanttChartSquare, Download } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, AlertTriangle, Plus, MoreVertical, Edit, Trash2, GanttChartSquare, Download } from 'lucide-react';
 import { FullCampaignData, CampaignTask as CampaignTaskType, InsertCampaignPhase } from '@shared/schema';
 import { format, parseISO, differenceInDays, addDays, subDays, isValid, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -321,7 +321,7 @@ export default function SchedulePage() {
        </Card>
 
       {isLoadingCampaignDetails && selectedCampaignId && <div className="p-8 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /> Carregando detalhes...</div>}
-      {error && <div className="p-8 text-center text-destructive"><BadgeAlert className="h-12 w-12 mx-auto" />{(error as Error).message}</div>}
+      {error && <div className="p-8 text-center text-destructive"><AlertTriangle className="h-12 w-12 mx-auto" />{(error as Error).message}</div>}
       {!selectedCampaignId && !isLoadingCampaigns && ( <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed rounded-lg h-96"> <GanttChartSquare className="h-16 w-16 text-muted-foreground" /> <p className="mt-4 text-lg font-medium text-muted-foreground"> Selecione uma campanha para começar. </p> </div> )}
       
       {campaign && (

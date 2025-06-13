@@ -1,948 +1,406 @@
-// client/src/pages/landingpages.tsx
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { apiRequest } from '@/lib/api';
-import { LandingPage as LpType, InsertLandingPage, Campaign as CampaignType } from '@shared/schema';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
-import { MoreHorizontal, Edit, Bot, Loader2, Link as LinkIcon, Save, ExternalLink, Palette, Zap, Target, Settings, Sparkles, Wand2, Eye, Code, Layers, Rocket } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Plus, LayoutTemplate, Eye, Edit2, Trash2, ExternalLink, AlertTriangle, Loader2 } from 'lucide-react';
+import StudioEditorComponent from '@/components/StudioEditorComponent';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-import GrapesJsEditor from '@/components/grapesjs-editor';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+import { useAuthStore } from '@/lib/auth'; // Importar o seu auth store
 
-// Schema atualizado com todas as opções avançadas
-const generateLpFormSchema = z.object({
-  name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
-  campaignId: z.preprocess((val) => (val === "NONE" || val === "" ? null : Number(val)), z.number().nullable().optional()),
-  reference: z.string().url("Por favor, insira uma URL válida.").optional().or(z.literal('')),
-  prompt: z.string().min(20, "O prompt deve ter pelo menos 20 caracteres."),
-  
-  // Opções avançadas
-  style: z.enum(['modern', 'minimal', 'bold', 'elegant', 'tech', 'startup']).default('modern'),
-  colorScheme: z.enum(['dark', 'light', 'gradient', 'neon', 'earth', 'ocean']).default('dark'),
-  industry: z.string().optional(),
-  targetAudience: z.string().optional(),
-  primaryCTA: z.string().default('Começar Agora'),
-  secondaryCTA: z.string().default('Saber Mais'),
-  includeTestimonials: z.boolean().default(true),
-  includePricing: z.boolean().default(false),
-  includeStats: z.boolean().default(true),
-  includeFAQ: z.boolean().default(true),
-  animationsLevel: z.enum(['none', 'subtle', 'moderate', 'dynamic']).default('moderate'),
-});
+const GRAPESJS_STUDIO_LICENSE_KEY = 'a588bab57a26417d829a73e27616d0233b3b7ba518ea4156a72f28517c14f616';
 
-type GenerateLpFormData = z.infer<typeof generateLpFormSchema>;
-
-interface LandingPageOptions {
-  style?: 'modern' | 'minimal' | 'bold' | 'elegant' | 'tech' | 'startup';
-  colorScheme?: 'dark' | 'light' | 'gradient' | 'neon' | 'earth' | 'ocean';
-  industry?: string;
-  targetAudience?: string;
-  primaryCTA?: string;
-  secondaryCTA?: string;
-  includeTestimonials?: boolean;
-  includePricing?: boolean;
-  includeStats?: boolean;
-  includeFAQ?: boolean;
-  animationsLevel?: 'none' | 'subtle' | 'moderate' | 'dynamic';
+interface LandingPageItem {
+  id: string;
+  name: string;
+  studioProjectId?: string; 
+  createdAt: string;
+  status: 'draft' | 'published';
+  urlSlug?: string;
+  publicUrl?: string;
+  grapesJsData?: any; 
 }
 
-export default function LandingPages() {
-  const { toast } = useToast();
+export default function LandingPagesPage() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [showStudioEditor, setShowStudioEditor] = useState(false);
+  const [editingLp, setEditingLp] = useState<LandingPageItem | null>(null);
+  const [isEditorLoading, setIsEditorLoading] = useState(false);
 
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [previewVariations, setPreviewVariations] = useState<string[]>([]);
-  const [activePreview, setActivePreview] = useState(0);
-  const [showEditor, setShowEditor] = useState(false);
-  const [editingLp, setEditingLp] = useState<LpType | null>(null);
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
-
-  const { data: campaigns = [] } = useQuery<CampaignType[]>({
-    queryKey: ['campaignsForLpSelect'],
-    queryFn: () => apiRequest('GET', '/api/campaigns').then(res => res.json())
+  const { data: landingPages = [], isLoading: isLoadingLps, error: lpsError, refetch: refetchLps } = useQuery<LandingPageItem[], Error>({
+    queryKey: ['myStudioLandingPages'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/landingpages');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: 'Falha ao carregar landing pages.' }));
+        throw new Error(errData.message);
+      }
+      return response.json();
+    }
   });
 
-  const { data: landingPages = [] } = useQuery<LpType[]>({
-    queryKey: ['landingPages'],
-    queryFn: () => apiRequest('GET', '/api/landingpages').then(res => res.json())
-  });
+  const saveLpMutation = useMutation<LandingPageItem, Error, { projectData: any, lpMetadata: Partial<Omit<LandingPageItem, 'id' | 'createdAt' | 'grapesJsData'>> & { id?: string, grapesJsData: any } }>({
+    mutationFn: async ({ lpMetadata }) => {
+      const method = lpMetadata.id ? 'PUT' : 'POST';
+      const endpoint = lpMetadata.id ? `/api/landingpages/${lpMetadata.id}` : '/api/landingpages';
+      
+      const payload = {
+        name: lpMetadata.name,
+        studioProjectId: lpMetadata.studioProjectId,
+        status: lpMetadata.status,
+        slug: lpMetadata.urlSlug || lpMetadata.name?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        grapesJsData: lpMetadata.grapesJsData,
+        publicUrl: lpMetadata.publicUrl, 
+      };
+      if (lpMetadata.id) {
+        (payload as any).id = lpMetadata.id;
+      }
 
-  const form = useForm<GenerateLpFormData>({
-    resolver: zodResolver(generateLpFormSchema),
-    defaultValues: { 
-      name: '', 
-      campaignId: null, 
-      reference: '', 
-      prompt: '',
-      style: 'modern',
-      colorScheme: 'dark',
-      industry: '',
-      targetAudience: '',
-      primaryCTA: 'Começar Agora',
-      secondaryCTA: 'Saber Mais',
-      includeTestimonials: true,
-      includePricing: false,
-      includeStats: true,
-      includeFAQ: true,
-      animationsLevel: 'moderate'
-    },
-  });
-
-  // Mutação para preview simples
-  const previewMutation = useMutation({
-    mutationFn: async (data: { prompt: string; reference?: string; options?: LandingPageOptions }) => {
-      const response = await apiRequest('POST', '/api/landingpages/preview-advanced', data);
+      const response = await apiRequest(method, endpoint, payload);
+      if (!response.ok) {
+        const errorResult = await response.json().catch(() => ({ message: 'Erro desconhecido ao salvar' }));
+        throw new Error(errorResult.message);
+      }
       return response.json();
     },
-    onSuccess: (data: { htmlContent: string }) => {
-      setPreviewHtml(data.htmlContent);
-      setPreviewVariations([]);
-      setActivePreview(0);
-      toast({ 
-        title: "Landing Page Gerada! 🚀", 
-        description: "Sua página está pronta para revisão." 
-      });
+    onSuccess: (savedLp) => {
+      queryClient.invalidateQueries({ queryKey: ['myStudioLandingPages'] });
+      setShowStudioEditor(false);
+      setEditingLp(null);
+      toast({ title: "Sucesso", description: `Landing page "${savedLp.name}" salva no seu backend.` });
     },
-    onError: (error: Error) => {
-      toast({ 
-        title: "Erro na Geração", 
-        description: error.message, 
-        variant: "destructive" 
-      });
-    },
+    onError: (error) => {
+      toast({ title: "Erro ao Salvar LP", description: error.message, variant: "destructive" });
+    }
   });
 
-  // Mutação para múltiplas variações
-  const variationsMutation = useMutation({
-    mutationFn: async (data: { prompt: string; reference?: string; options?: LandingPageOptions; count?: number }) => {
-      const response = await apiRequest('POST', '/api/landingpages/generate-variations', data);
-      return response.json();
-    },
-    onSuccess: (data: { variations: string[] }) => {
-      setPreviewVariations(data.variations);
-      setPreviewHtml(data.variations[0] || null);
-      setActivePreview(0);
-      toast({ 
-        title: `${data.variations.length} Variações Criadas! ✨`, 
-        description: "Explore as diferentes opções de design." 
-      });
-    },
-    onError: (error: Error) => {
-      toast({ 
-        title: "Erro ao Gerar Variações", 
-        description: error.message, 
-        variant: "destructive" 
-      });
-    },
-  });
+  const handleProjectSave = async (projectData: any, studioProjectIdFromEditor: string): Promise<{ id: string } | void > => {
+    setIsEditorLoading(true);
+    let lpName = editingLp?.name || "Nova Landing Page";
+    let lpIdInOurDb = editingLp?.id;
 
-  // Mutação para salvar e editar
-  const saveAndEditMutation = useMutation({
-    mutationFn: (data: { name: string; campaignId: number | null; grapesJsData: { html: string; css: string } }) =>
-      apiRequest('POST', '/api/landingpages', data).then(res => res.json()),
-    onSuccess: (savedLp: LpType) => {
-      toast({ 
-        title: "Página Salva com Sucesso! 💾", 
-        description: "Abrindo o editor visual..." 
+    if (!editingLp) {
+        const newName = prompt("Defina o Nome da Landing Page:", lpName);
+        if (!newName || newName.trim() === "") {
+            toast({ title: "Ação Cancelada", description: "Nome é obrigatório para nova landing page.", variant: "destructive"});
+            setIsEditorLoading(false);
+            throw new Error("Nome é obrigatório");
+        }
+        lpName = newName;
+    }
+    
+    try {
+      const savedLp = await saveLpMutation.mutateAsync({ 
+        projectData, 
+        lpMetadata: { 
+            id: lpIdInOurDb, 
+            name: lpName, 
+            studioProjectId: studioProjectIdFromEditor, 
+            status: 'draft',
+            grapesJsData: projectData 
+        } 
       });
-      queryClient.invalidateQueries({ queryKey: ['landingPages'] });
-      setEditingLp(savedLp);
-      setShowEditor(true);
-    },
-    onError: (error: Error) => {
-      toast({ 
-        title: "Erro ao Salvar", 
-        description: error.message, 
-        variant: "destructive" 
-      });
-    },
-  });
+      setIsEditorLoading(false);
+      if (!savedLp.studioProjectId) {
+        console.error("Backend não retornou studioProjectId para a landing page salva.", savedLp);
+        throw new Error("Falha ao obter ID do projeto do Studio do backend.");
+      }
+      return { id: savedLp.studioProjectId }; 
+    } catch (error) {
+      setIsEditorLoading(false);
+      console.error("Falha na mutação saveLpMutation em handleProjectSave:", error);
+      throw error; 
+    }
+  };
   
-  // Mutação para atualizar página existente
-  const updateLpMutation = useMutation({
-    mutationFn: async (data: { id: number, grapesJsData: any }) => {
-      return apiRequest('PUT', `/api/landingpages/${data.id}`, { grapesJsData: data.grapesJsData });
+  const handleProjectLoad = async (projectIdToLoad: string): Promise<{ project: any }> => {
+    setIsEditorLoading(true);
+    try {
+      console.log(`[LP_PAGE] handleProjectLoad: Carregando projeto com studioProjectId: ${projectIdToLoad}`);
+      const response = await apiRequest('GET', `/api/landingpages/studio-project/${projectIdToLoad}`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: `Projeto ${projectIdToLoad} não encontrado ou erro ao carregar.` }));
+        throw new Error(errData.message);
+      }
+      const lpData : any = await response.json();
+      setIsEditorLoading(false);
+      if (!lpData || typeof lpData.project !== 'object' || lpData.project === null) {
+        console.warn(`[LP_PAGE] handleProjectLoad: Dados do projeto ${projectIdToLoad} estão vazios, malformados ou não contêm a chave 'project'. Resposta:`, lpData);
+        return { project: {} };
+      }
+      console.log(`[LP_PAGE] handleProjectLoad: Projeto ${projectIdToLoad} carregado.`);
+      return { project: lpData.project };
+    } catch (error) {
+        setIsEditorLoading(false);
+        console.error("[LP_PAGE] handleProjectLoad: Erro ao carregar dados do projeto do backend:", error);
+        toast({title: "Erro ao Carregar Projeto", description: (error as Error).message, variant: "destructive"})
+        throw error;
+    }
+  };
+
+  const handleAssetsUpload = async (files: File[]): Promise<{ src: string }[]> => {
+    setIsEditorLoading(true);
+    console.log("[LP_PAGE] handleAssetsUpload: Iniciando upload para", files.length, "arquivo(s).");
+    
+    const token = useAuthStore.getState().token; // TENTANDO PEGAR DO STORE ZUSTAND
+    // const token = localStorage.getItem('token'); // Linha antiga
+
+    console.log("[LP_PAGE] handleAssetsUpload: Token obtido:", token ? `SIM (primeiros 10: ${token.substring(0,10)}...)` : 'NÃO ENCONTRADO');
+
+    if (!token) {
+        toast({ title: "Erro de Autenticação", description: "Token não encontrado para upload de asset.", variant: "destructive" });
+        setIsEditorLoading(false);
+        throw new Error("Token de autenticação não encontrado para upload de asset.");
+    }
+
+    try {
+      const uploadedAssetsPromises = files.map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/assets/lp-upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`, 
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({ message: `Falha no upload do arquivo: ${file.name}` }));
+          console.error(`[LP_PAGE] handleAssetsUpload: Erro no backend para ${file.name}`, errData);
+          throw new Error(errData.message);
+        }
+        const result = await response.json(); 
+        console.log(`[LP_PAGE] handleAssetsUpload: Resposta do backend para ${file.name}`, result);
+
+        if (Array.isArray(result) && result.length > 0 && result[0].src) {
+          return result[0]; 
+        } else {
+          console.error("[LP_PAGE] handleAssetsUpload: Formato de resposta inesperado do upload de asset:", result);
+          throw new Error(`API de upload não retornou a URL formatada corretamente para ${file.name}`);
+        }
+      });
+
+      const results = await Promise.all(uploadedAssetsPromises);
+      setIsEditorLoading(false);
+      console.log("[LP_PAGE] handleAssetsUpload: Todos os assets processados:", results);
+      return results; 
+    } catch (error) {
+      setIsEditorLoading(false);
+      console.error("[LP_PAGE] handleAssetsUpload: Erro geral:", error);
+      toast({ title: "Erro Upload de Assets", description: (error as Error).message, variant: "destructive" });
+      throw error; 
+    }
+  };
+
+  const handleAssetsDelete = async (assets: { src: string }[]): Promise<void> => {
+    setIsEditorLoading(true);
+    console.log("[LP_PAGE] handleAssetsDelete: Deletando assets:", assets);
+    try {
+      const response = await apiRequest('POST', '/api/assets/lp-delete', { assets }); 
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: 'Falha ao deletar assets' }));
+        throw new Error(errData.message);
+      }
+      setIsEditorLoading(false);
+      toast({title: "Assets Deletados", description: `${assets.length} asset(s) marcados para remoção.`});
+    } catch (error) {
+        setIsEditorLoading(false);
+        console.error("[LP_PAGE] handleAssetsDelete: Erro ao deletar assets no backend:", error);
+        toast({title: "Erro ao Deletar Assets", description: (error as Error).message, variant: "destructive"})
+        throw error;
+    }
+  };
+  
+  const handleEditorError = (error: any) => {
+    console.error("[LP_PAGE] Studio Editor - Erro Global Recebido:", error);
+    toast({ title: "Erro no Editor", description: error?.message || "Ocorreu um problema com o editor.", variant: "destructive"});
+    setShowStudioEditor(false); 
+  };
+
+  const handleCreateNew = () => {
+    if (!GRAPESJS_STUDIO_LICENSE_KEY) {
+      toast({ title: "Configuração Inválida", description: "Chave de licença do GrapesJS Studio está ausente.", variant: "destructive" });
+      return;
+    }
+    setEditingLp(null);
+    setShowStudioEditor(true);
+  };
+
+  const handleEdit = (page: LandingPageItem) => {
+     if (!GRAPESJS_STUDIO_LICENSE_KEY ) {
+      toast({ title: "Configuração Inválida", description: "Chave de licença do GrapesJS Studio está ausente.", variant: "destructive" });
+      return;
+    }
+    if (!page.studioProjectId && !page.grapesJsData) {
+      toast({ title: "Dados Incompletos", description: "Landing page sem ID de projeto do Studio ou dados para carregar.", variant: "destructive"});
+      return;
+    }
+    setEditingLp(page);
+    setShowStudioEditor(true);
+  };
+
+  const deleteLpMutation = useMutation<void, Error, string>({
+    mutationFn: async (pageId: string) => {
+        const response = await apiRequest('DELETE', `/api/landingpages/${pageId}`);
+        if(!response.ok) {
+            const errorResult = await response.json().catch(() => ({ message: 'Erro desconhecido ao excluir' }));
+            throw new Error(errorResult.message || "Falha ao excluir landing page");
+        }
     },
     onSuccess: () => {
-      toast({ 
-        title: "Alterações Salvas! ✅", 
-        description: "Sua landing page foi atualizada com sucesso." 
-      });
-      queryClient.invalidateQueries({ queryKey: ['landingPages'] });
+        queryClient.invalidateQueries({queryKey: ['myStudioLandingPages']});
+        toast({title: "Excluído", description: "Landing page excluída com sucesso."});
     },
-    onError: (error: Error) => {
-      toast({ 
-        title: "Erro ao Salvar Alterações", 
-        description: error.message, 
-        variant: "destructive" 
-      });
+    onError: (error) => {
+        toast({title: "Erro ao Excluir", description: error.message, variant: "destructive"});
     }
   });
 
-  // Mutação para otimizar página existente
-  const optimizeMutation = useMutation({
-    mutationFn: async (data: { html: string; goals: string[] }) => {
-      const response = await apiRequest('POST', '/api/landingpages/optimize', data);
-      return response.json();
-    },
-    onSuccess: (data: { htmlContent: string }) => {
-      setPreviewHtml(data.htmlContent);
-      toast({ 
-        title: "Página Otimizada! ⚡", 
-        description: "Aplicamos melhorias para aumentar a conversão." 
-      });
-    },
-    onError: (error: Error) => {
-      toast({ 
-        title: "Erro na Otimização", 
-        description: error.message, 
-        variant: "destructive" 
-      });
-    },
-  });
-
-  const onGenerateSubmit = (data: GenerateLpFormData) => {
-    setPreviewHtml(null);
-    setPreviewVariations([]);
-    
-    const options: LandingPageOptions = {
-      style: data.style,
-      colorScheme: data.colorScheme,
-      industry: data.industry,
-      targetAudience: data.targetAudience,
-      primaryCTA: data.primaryCTA,
-      secondaryCTA: data.secondaryCTA,
-      includeTestimonials: data.includeTestimonials,
-      includePricing: data.includePricing,
-      includeStats: data.includeStats,
-      includeFAQ: data.includeFAQ,
-      animationsLevel: data.animationsLevel,
-    };
-
-    previewMutation.mutate({ 
-      prompt: data.prompt, 
-      reference: data.reference,
-      options 
-    });
-  };
-
-  const onGenerateVariations = () => {
-    const data = form.getValues();
-    const options: LandingPageOptions = {
-      style: data.style,
-      colorScheme: data.colorScheme,
-      industry: data.industry,
-      targetAudience: data.targetAudience,
-      primaryCTA: data.primaryCTA,
-      secondaryCTA: data.secondaryCTA,
-      includeTestimonials: data.includeTestimonials,
-      includePricing: data.includePricing,
-      includeStats: data.includeStats,
-      includeFAQ: data.includeFAQ,
-      animationsLevel: data.animationsLevel,
-    };
-
-    variationsMutation.mutate({ 
-      prompt: data.prompt, 
-      reference: data.reference,
-      options,
-      count: 3 
-    });
-  };
-
-  const handleOptimize = () => {
-    if (!previewHtml) return;
-    optimizeMutation.mutate({
-      html: previewHtml,
-      goals: ['conversion', 'performance', 'accessibility']
-    });
-  };
-  
-  const handleEditClick = () => {
-    const currentHtml = previewVariations.length > 0 ? previewVariations[activePreview] : previewHtml;
-    if (!currentHtml) return;
-    
-    const formData = form.getValues();
-    saveAndEditMutation.mutate({
-      name: formData.name,
-      campaignId: formData.campaignId || null,
-      grapesJsData: { html: currentHtml, css: '' },
-    });
-  };
-
-  const handleOpenInNewTab = () => {
-    const currentHtml = previewVariations.length > 0 ? previewVariations[activePreview] : previewHtml;
-    if (currentHtml) {
-      const newWindow = window.open();
-      if (newWindow) {
-        newWindow.document.write(currentHtml);
-        newWindow.document.close();
-      } else {
-        toast({ 
-          title: "Erro", 
-          description: "Não foi possível abrir a nova aba. Verifique se o seu navegador está bloqueando pop-ups.", 
-          variant: "destructive" 
-        });
-      }
+  const handleDelete = (page: LandingPageItem) => {
+    if (window.confirm(`Tem certeza que deseja excluir a landing page "${page.name}"? Esta ação não pode ser desfeita.`)) {
+      deleteLpMutation.mutate(page.id);
     }
   };
 
-  const handleSaveFromEditor = (id: number, data: any) => {
-    updateLpMutation.mutate({ id, grapesJsData: data });
-  };
-
-  const handleEditExistingLp = (lp: LpType) => {
-    setEditingLp(lp);
-    setShowEditor(true);
-  };
-
-  const getCurrentPreview = () => {
-    return previewVariations.length > 0 ? previewVariations[activePreview] : previewHtml;
-  };
-
-  const isGenerating = previewMutation.isPending || variationsMutation.isPending;
-
-  if (showEditor && editingLp) {
+  if (isLoadingLps) {
     return (
-      <GrapesJsEditor 
-        initialData={editingLp.grapesJsData as any} 
-        onSave={(data) => handleSaveFromEditor(editingLp.id, data)}
-        onBack={() => {
-          setShowEditor(false);
-          setEditingLp(null);
-        }}
-      />
+        <div className="p-8 text-center flex flex-col items-center justify-center h-[calc(100vh-150px)]">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            Carregando landing pages...
+        </div>
+    );
+  }
+
+  if (showStudioEditor) {
+    return (
+      <div className="p-0 md:p-0 h-screen flex flex-col bg-background relative">
+        {(isEditorLoading || saveLpMutation.isPending) && (
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-50">
+                <Loader2 className="h-10 w-10 animate-spin text-white"/>
+            </div>
+        )}
+        <div className="flex items-center justify-between mb-0 p-3 border-b bg-card flex-shrink-0">
+          <Button onClick={() => { setShowStudioEditor(false); setEditingLp(null); }} variant="outline" size="sm" disabled={isEditorLoading || saveLpMutation.isPending}>
+            ← Voltar para Lista
+          </Button>
+          <h2 className="text-lg font-semibold truncate px-2">
+            {editingLp ? `Editando: ${editingLp.name}` : 'Nova Landing Page'}
+          </h2>
+          <div style={{width: '96px'}}></div>
+        </div>
+        <div className="flex-grow min-h-0">
+          <StudioEditorComponent
+            key={editingLp?.id || 'new-studio-lp'}
+            licenseKey={GRAPESJS_STUDIO_LICENSE_KEY}
+            projectId={editingLp?.studioProjectId}
+            initialProjectData={editingLp?.grapesJsData}
+            onProjectSave={handleProjectSave}
+            onProjectLoad={handleProjectLoad}
+            onAssetsUpload={handleAssetsUpload}
+            onAssetsDelete={handleAssetsDelete}
+            onEditorError={handleEditorError}
+            onEditorLoad={() => console.log("[LP_PAGE] Studio Editor Component Carregado e Pronto!")}
+          />
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 dark:from-slate-900 dark:to-gray-900">
-      <div className="container mx-auto p-4 md:p-6 space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-4">
-          <div className="flex items-center justify-center gap-2">
-            <Wand2 className="h-8 w-8 text-primary" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-              AI Landing Page Generator
-            </h1>
-          </div>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Crie landing pages profissionais em segundos com nossa IA avançada. 
-            Design moderno, alta conversão e totalmente responsivo.
+    <div className="p-4 md:p-8 space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center">
+            <LayoutTemplate className="w-7 h-7 mr-3 text-primary" />
+            Landing Pages
+          </h1>
+          <p className="text-muted-foreground mt-1 md:mt-2">
+            Crie e gerencie suas páginas de destino com o GrapesJS Studio.
           </p>
         </div>
-
-        {/* Estatísticas Rápidas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-primary">{landingPages.length}</div>
-              <div className="text-sm text-muted-foreground">Páginas Criadas</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-green-600">98%</div>
-              <div className="text-sm text-muted-foreground">Taxa de Sucesso</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-blue-600">6</div>
-              <div className="text-sm text-muted-foreground">Estilos Únicos</div>
-            </CardContent>
-          </Card>
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-purple-600">AI</div>
-              <div className="text-sm text-muted-foreground">Powered</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
-          {/* Formulário de Configuração */}
-          <div className="space-y-6">
-            <Card className="sticky top-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bot className="text-primary" />
-                  Configuração da Landing Page
-                </CardTitle>
-                <CardDescription>
-                  Configure todos os detalhes da sua página para obter o melhor resultado
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onGenerateSubmit)} className="space-y-6">
-                    <Tabs defaultValue="basic" className="space-y-4">
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="basic">Básico</TabsTrigger>
-                        <TabsTrigger value="advanced">Avançado</TabsTrigger>
-                      </TabsList>
-                      
-                      <TabsContent value="basic" className="space-y-4">
-                        <FormField 
-                          control={form.control} 
-                          name="name" 
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Nome da Página *</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  placeholder="Ex: Lançamento do Produto Y" 
-                                  {...field} 
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )} 
-                        />
-
-                        <FormField 
-                          control={form.control} 
-                          name="campaignId" 
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Campanha</FormLabel>
-                              <Select 
-                                onValueChange={(value) => field.onChange(value === "NONE" ? null : parseInt(value))} 
-                                defaultValue={field.value === null ? "NONE" : String(field.value)}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Selecione uma campanha" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="NONE">Nenhuma campanha</SelectItem>
-                                  {campaigns.map(c => (
-                                    <SelectItem key={c.id} value={String(c.id)}>
-                                      {c.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )} 
-                        />
-
-                        <FormField 
-                          control={form.control} 
-                          name="prompt" 
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Descrição da Página *</FormLabel>
-                              <FormControl>
-                                <Textarea 
-                                  placeholder="Descreva detalhadamente sua landing page: objetivo, público-alvo, principais seções, produtos/serviços, tom de voz, etc..."
-                                  rows={6}
-                                  className="resize-none"
-                                  {...field} 
-                                />
-                              </FormControl>
-                              <FormDescription>
-                                Seja específico para obter melhores resultados (mínimo 20 caracteres)
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )} 
-                        />
-
-                        <FormField 
-                          control={form.control} 
-                          name="reference" 
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>URL de Referência (Opcional)</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  placeholder="https://exemplo.com/inspiracao"
-                                  {...field} 
-                                />
-                              </FormControl>
-                              <FormDescription>
-                                URL de uma página que serve como inspiração visual
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )} 
-                        />
-                      </TabsContent>
-
-                      <TabsContent value="advanced" className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField 
-                            control={form.control} 
-                            name="style" 
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Estilo Visual</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="modern">Moderno</SelectItem>
-                                    <SelectItem value="minimal">Minimalista</SelectItem>
-                                    <SelectItem value="bold">Ousado</SelectItem>
-                                    <SelectItem value="elegant">Elegante</SelectItem>
-                                    <SelectItem value="tech">Tecnológico</SelectItem>
-                                    <SelectItem value="startup">Startup</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </FormItem>
-                            )} 
-                          />
-
-                          <FormField 
-                            control={form.control} 
-                            name="colorScheme" 
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Esquema de Cores</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="dark">Escuro</SelectItem>
-                                    <SelectItem value="light">Claro</SelectItem>
-                                    <SelectItem value="gradient">Gradiente</SelectItem>
-                                    <SelectItem value="neon">Neon</SelectItem>
-                                    <SelectItem value="earth">Terra</SelectItem>
-                                    <SelectItem value="ocean">Oceano</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </FormItem>
-                            )} 
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField 
-                            control={form.control} 
-                            name="industry" 
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Indústria/Setor</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Ex: SaaS, E-commerce, Saúde" {...field} />
-                                </FormControl>
-                              </FormItem>
-                            )} 
-                          />
-
-                          <FormField 
-                            control={form.control} 
-                            name="targetAudience" 
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Público-Alvo</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Ex: Gestores de TI, Empreendedores" {...field} />
-                                </FormControl>
-                              </FormItem>
-                            )} 
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField 
-                            control={form.control} 
-                            name="primaryCTA" 
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>CTA Primário</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Ex: Teste Grátis por 14 Dias" {...field} />
-                                </FormControl>
-                              </FormItem>
-                            )} 
-                          />
-
-                          <FormField 
-                            control={form.control} 
-                            name="secondaryCTA" 
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>CTA Secundário</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Ex: Ver Demonstração" {...field} />
-                                </FormControl>
-                              </FormItem>
-                            )} 
-                          />
-                        </div>
-
-                        <FormField 
-                          control={form.control} 
-                          name="animationsLevel" 
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Nível de Animações</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="none">Nenhuma</SelectItem>
-                                  <SelectItem value="subtle">Sutil</SelectItem>
-                                  <SelectItem value="moderate">Moderada</SelectItem>
-                                  <SelectItem value="dynamic">Dinâmica</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </FormItem>
-                          )} 
-                        />
-
-                        <Separator />
-
-                        <div className="space-y-3">
-                          <div className="text-sm font-medium">Seções Incluídas</div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <FormField 
-                              control={form.control} 
-                              name="includeTestimonials" 
-                              render={({ field }) => (
-                                <FormItem className="flex items-center space-x-2">
-                                  <FormControl>
-                                    <Switch 
-                                      checked={field.value} 
-                                      onCheckedChange={field.onChange}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="text-sm">Depoimentos</FormLabel>
-                                </FormItem>
-                              )} 
-                            />
-
-                            <FormField 
-                              control={form.control} 
-                              name="includePricing" 
-                              render={({ field }) => (
-                                <FormItem className="flex items-center space-x-2">
-                                  <FormControl>
-                                    <Switch 
-                                      checked={field.value} 
-                                      onCheckedChange={field.onChange}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="text-sm">Preços</FormLabel>
-                                </FormItem>
-                              )} 
-                            />
-
-                            <FormField 
-                              control={form.control} 
-                              name="includeStats" 
-                              render={({ field }) => (
-                                <FormItem className="flex items-center space-x-2">
-                                  <FormControl>
-                                    <Switch 
-                                      checked={field.value} 
-                                      onCheckedChange={field.onChange}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="text-sm">Estatísticas</FormLabel>
-                                </FormItem>
-                              )} 
-                            />
-
-                            <FormField 
-                              control={form.control} 
-                              name="includeFAQ" 
-                              render={({ field }) => (
-                                <FormItem className="flex items-center space-x-2">
-                                  <FormControl>
-                                    <Switch 
-                                      checked={field.value} 
-                                      onCheckedChange={field.onChange}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="text-sm">FAQ</FormLabel>
-                                </FormItem>
-                              )} 
-                            />
-                          </div>
-                        </div>
-                      </TabsContent>
-                    </Tabs>
-
-                    <Separator />
-
-                    <div className="flex flex-col gap-3">
-                      <Button 
-                        type="submit" 
-                        className="w-full" 
-                        disabled={isGenerating}
-                        size="lg"
-                      >
-                        {isGenerating ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-                            Gerando sua página...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="mr-2 h-4 w-4"/>
-                            Gerar Landing Page
-                          </>
-                        )}
-                      </Button>
-
-                      <Button 
-                        type="button"
-                        variant="outline"
-                        onClick={onGenerateVariations}
-                        disabled={isGenerating || !form.getValues().prompt}
-                        className="w-full"
-                      >
-                        {variationsMutation.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-                            Criando variações...
-                          </>
-                        ) : (
-                          <>
-                            <Layers className="mr-2 h-4 w-4"/>
-                            Gerar 3 Variações
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Preview */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Eye className="h-5 w-5" />
-                    Preview da Landing Page
-                    {previewVariations.length > 0 && (
-                      <Badge variant="secondary">
-                        {activePreview + 1} de {previewVariations.length}</Badge>
-                    )}
-                  </CardTitle>
-                  {previewVariations.length > 1 && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setActivePreview(Math.max(0, activePreview - 1))}
-                        disabled={activePreview === 0}
-                      >
-                        Anterior
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setActivePreview(Math.min(previewVariations.length - 1, activePreview + 1))}
-                        disabled={activePreview === previewVariations.length - 1}
-                      >
-                        Próxima
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              
-              <CardContent>
-                {getCurrentPreview() ? (
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        onClick={handleEditClick}
-                        disabled={saveAndEditMutation.isPending}
-                        size="sm"
-                      >
-                        {saveAndEditMutation.isPending ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Edit className="mr-2 h-4 w-4" />
-                        )}
-                        Editar no GrapesJS
-                      </Button>
-                      
-                      <Button
-                        variant="outline"
-                        onClick={handleOpenInNewTab}
-                        size="sm"
-                      >
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        Abrir em Nova Aba
-                      </Button>
-                      
-                      <Button
-                        variant="outline"
-                        onClick={handleOptimize}
-                        disabled={optimizeMutation.isPending}
-                        size="sm"
-                      >
-                        {optimizeMutation.isPending ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Zap className="mr-2 h-4 w-4" />
-                        )}
-                        Otimizar
-                      </Button>
-                    </div>
-                    
-                    <div className="border rounded-lg overflow-hidden">
-                      <iframe
-                        srcDoc={getCurrentPreview()}
-                        className="w-full h-[600px] border-0"
-                        title="Landing Page Preview"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-16 text-muted-foreground">
-                    <Bot className="mx-auto h-16 w-16 mb-4 opacity-50" />
-                    <p className="text-lg mb-2">Nenhuma página gerada ainda</p>
-                    <p className="text-sm">Preencha o formulário e clique em "Gerar Landing Page"</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Seção de Páginas Existentes */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Rocket className="h-5 w-5" />
-              Suas Landing Pages
-            </CardTitle>
-            <CardDescription>
-              Gerencie e edite suas páginas existentes
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {landingPages.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Settings className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                <p>Nenhuma landing page criada ainda</p>
-                <p className="text-sm">Crie sua primeira página usando o gerador acima</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {landingPages.map((lp) => (
-                  <Card key={lp.id} className="hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <CardTitle className="text-base">{lp.name}</CardTitle>
-                          <CardDescription className="text-xs">
-                            Criada em {new Date(lp.createdAt).toLocaleDateString('pt-BR')}
-                          </CardDescription>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditExistingLp(lp)}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="space-y-3">
-                        {lp.campaignId && (
-                          <Badge variant="outline" className="text-xs">
-                            Campanha: {campaigns.find(c => c.id === lp.campaignId)?.name || 'N/A'}
-                          </Badge>
-                        )}
-                        
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditExistingLp(lp)}
-                            className="flex-1"
-                          >
-                            <Edit className="mr-2 h-3 w-3" />
-                            Editar
-                          </Button>
-                          
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const htmlContent = lp.grapesJsData?.html || '';
-                              if (htmlContent) {
-                                const newWindow = window.open();
-                                if (newWindow) {
-                                  newWindow.document.write(htmlContent);
-                                  newWindow.document.close();
-                                }
-                              }
-                            }}
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Footer com Dicas */}
-        <Card className="bg-gradient-to-r from-primary/5 to-purple-500/5 border-primary/20">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-3">
-              <div className="flex items-center justify-center gap-2">
-                <Target className="h-5 w-5 text-primary" />
-                <h3 className="font-semibold">Dicas para Melhores Resultados</h3>
-              </div>
-              <div className="text-sm text-muted-foreground max-w-4xl mx-auto">
-                <p className="mb-2">
-                  • <strong>Seja específico:</strong> Descreva detalhadamente seu produto, público-alvo e objetivos
-                </p>
-                <p className="mb-2">
-                  • <strong>Use referências:</strong> Adicione URLs de páginas que inspiram seu design
-                </p>
-                <p className="mb-2">
-                  • <strong>Teste variações:</strong> Gere múltiplas versões e compare os resultados
-                </p>
-                <p>
-                  • <strong>Otimize sempre:</strong> Use a função de otimização para melhorar conversões
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <Button onClick={handleCreateNew}>
+          <Plus className="w-4 h-4 mr-2" />
+          Criar Nova Landing Page
+        </Button>
       </div>
+
+      {lpsError && (
+         <Card className="border-destructive bg-destructive/10">
+            <CardContent className="p-4 text-destructive-foreground">
+                <div className="flex items-center">
+                    <AlertTriangle className="w-5 h-5 mr-2" />
+                    <p className="font-semibold">Erro ao carregar landing pages:</p>
+                </div>
+                <p className="text-sm ml-7">{lpsError.message}</p>
+                <Button variant="link" className="p-0 h-auto text-destructive-foreground hover:underline ml-7 mt-1" onClick={() => refetchLps()}>Tentar novamente</Button>
+            </CardContent>
+         </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Suas Landing Pages</CardTitle>
+          <CardDescription>
+            Visualize e gerencie todas as suas landing pages.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!isLoadingLps && landingPages.length === 0 && !lpsError ? (
+            <div className="text-center py-12">
+              <LayoutTemplate className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Nenhuma Landing Page Criada</h3>
+              <p className="text-muted-foreground mb-4">Comece criando sua primeira página de destino.</p>
+              <Button onClick={handleCreateNew}>
+                <Plus className="w-4 h-4 mr-2" />
+                Criar Primeira Landing Page
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {landingPages.map((page) => (
+                <Card key={page.id} className="flex flex-col sm:flex-row items-center justify-between p-4 gap-4 hover:shadow-md transition-shadow">
+                  <div className="flex-grow">
+                    <h4 className="font-semibold text-lg text-foreground">{page.name}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Criada em: {new Date(page.createdAt).toLocaleDateString()} - Status: 
+                      <span className={`ml-1 font-medium ${page.status === 'published' ? 'text-green-500' : 'text-yellow-500'}`}>
+                        {page.status === 'published' ? 'Publicada' : 'Rascunho'}
+                      </span>
+                    </p>
+                    {page.publicUrl && page.status === 'published' && (
+                       <a 
+                         href={page.publicUrl} 
+                         target="_blank" 
+                         rel="noopener noreferrer" 
+                         className="text-xs text-primary hover:underline flex items-center mt-1"
+                       >
+                         {page.publicUrl} <ExternalLink className="w-3 h-3 ml-1" />
+                       </a>
+                    )}
+                    {page.studioProjectId && <p className="text-xs text-muted-foreground mt-1">Studio Project ID: {page.studioProjectId}</p>}
+                  </div>
+                  <div className="flex items-center space-x-2 flex-shrink-0">
+                    {page.status === 'published' && page.publicUrl && (
+                      <Button variant="outline" size="sm" onClick={() => window.open(page.publicUrl, '_blank')}>
+                        <Eye className="w-4 h-4 mr-1 sm:mr-2" /> <span className="hidden sm:inline">Ver</span>
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(page)} disabled={!page.studioProjectId && !page.grapesJsData}>
+                      <Edit2 className="w-4 h-4 mr-1 sm:mr-2" /> <span className="hidden sm:inline">Editar</span>
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => handleDelete(page)}>
+                      <Trash2 className="w-4 h-4 mr-1 sm:mr-2" /> <span className="hidden sm:inline">Excluir</span>
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -17,7 +17,7 @@ import {
   Users,
   Download,
   Filter,
-  BadgeAlert,
+  AlertTriangle,
   Loader2
 } from 'lucide-react';
 

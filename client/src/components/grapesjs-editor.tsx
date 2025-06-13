@@ -1,397 +1,120 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
 import grapesjs, { Editor } from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
-import gjsPresetWebpage from 'grapesjs-preset-webpage';
-import { getApiUrl, api } from '@/lib/api'; // CORREÇÃO AQUI
-import { Button } from './ui/button';
-import { ArrowLeft, Save, Loader2, Eye, Code, Smartphone, Tablet, Monitor } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+// Opcional: Importar preset (se instalado)
+// import grapesjsPresetWebpage from 'grapesjs-preset-webpage';
+// Opcional: Outros plugins que você queira usar
+// import grapesjsCustomPlugin from 'grapesjs-some-custom-plugin';
 
-interface LandingPageData {
-  id: string;
-  name: string;
-  html: string;
-  css: string;
-  createdAt?: string;
-  updatedAt?: string;
+interface GrapesJsEditorProps {
+  initialData?: string; // Para carregar conteúdo JSON salvo anteriormente
+  onSave: (jsonData: string, htmlData: string, cssData: string) => void;
+  pageName?: string; // Nome da página para exibir ou usar no editor
 }
 
-const GrapesJsEditor = () => {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+const GrapesJsEditor: React.FC<GrapesJsEditorProps> = ({ initialData, onSave, pageName }) => {
   const editorRef = useRef<HTMLDivElement>(null);
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
-  const [currentDevice, setCurrentDevice] = useState('desktop');
+  const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
 
-  // Query para buscar os dados da landing page
-  const { data: landingPage, isLoading, error } = useQuery<LandingPageData>({
-    queryKey: ['landingpage', id],
-    queryFn: async () => {
-      if (!id) return null;
-      const res = await api.landingpages[':id'].$get({ param: { id } });
-      if (!res.ok) {
-        throw new Error('Failed to fetch landing page');
-      }
-      return await res.json();
-    },
-    enabled: !!id,
-    retry: 3,
-    retryDelay: 1000,
-  });
-
-  // Mutation para salvar as alterações
-  const mutation = useMutation({
-    mutationFn: async (data: { html: string; css: string }) => {
-      if (!id) throw new Error("No ID provided");
-      const res = await api.landingpages[':id'].$put({
-        param: { id },
-        json: data
-      });
-      if (!res.ok) {
-        throw new Error('Failed to save landing page');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['landingpages'] });
-      queryClient.invalidateQueries({ queryKey: ['landingpage', id] });
-      toast.success('Landing page salva com sucesso!');
-    },
-    onError: (error) => {
-      console.error('Save error:', error);
-      toast.error('Erro ao salvar a landing page');
-    },
-  });
-
-  // Inicialização do editor GrapesJS
   useEffect(() => {
-    if (!editorRef.current) return;
-
-    const assetManager = {
-      upload: `${getApiUrl()}/assets/upload`, // CORREÇÃO AQUI
-      uploadName: 'files',
-      multiUpload: true,
-      autoAdd: 1,
-      headers: {
-        // Adicione headers de autenticação se necessário
-        // 'Authorization': `Bearer ${token}`,
-      },
-    };
-
-    const gjsEditor = grapesjs.init({
-      container: editorRef.current,
-      fromElement: false,
-      height: 'calc(100vh - 120px)',
-      width: 'auto',
-      storageManager: false, // Desabilitar storage automático para controle manual
-      plugins: [gjsPresetWebpage],
-      pluginsOpts: {
-        [gjsPresetWebpage]: {
-          blocks: ['column1', 'column2', 'column3', 'text', 'link', 'image', 'video'],
-          modal: true,
-          flexGrid: true,
-          styleManagerSectors: [
-            {
-              name: 'Dimensões',
-              open: false,
-              buildProps: ['width', 'min-height', 'padding'],
-              properties: [
-                {
-                  type: 'integer',
-                  name: 'A largura',
-                  property: 'width',
-                  units: ['px', '%'],
-                  defaults: 'auto',
-                  min: 0,
-                }
-              ]
-            },
-            {
-              name: 'Decoração',
-              open: false,
-              buildProps: ['opacity', 'background-color', 'border-radius', 'border', 'box-shadow', 'background'],
-            },
-            {
-              name: 'Tipografia',
-              open: false,
-              buildProps: ['font-family', 'font-size', 'font-weight', 'letter-spacing', 'color', 'line-height', 'text-align', 'text-decoration', 'text-shadow'],
-            },
-            {
-              name: 'Espaçamento',
-              open: false,
-              buildProps: ['margin', 'padding'],
-            }
-          ]
+    if (editorRef.current && !editorInstance) {
+      const editor = grapesjs.init({
+        container: editorRef.current,
+        fromElement: false, // Não carregar de HTML/CSS existente no container
+        height: 'calc(100vh - 220px)', // Ajuste a altura conforme necessário
+        width: 'auto',
+        storageManager: {
+            type: 'local', // Ou 'remote' para salvar no backend
+            autosave: true,
+            stepsBeforeSave: 1,
+            // Se 'remote', configurar options: { urlStore: '/api/landingpages/content/store', ... }
         },
-      },
-      assetManager,
-      canvas: {
-        styles: [
-          'https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css'
+        // Plugins (exemplo com preset-webpage)
+        plugins: [
+          // grapesjsPresetWebpage,
+          // editor => grapesjsCustomPlugin(editor, { /* plugin options */ }),
         ],
-        scripts: [
-          'https://code.jquery.com/jquery-3.3.1.slim.min.js',
-          'https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js'
-        ]
-      },
-      deviceManager: {
-        devices: [
-          {
-            name: 'Desktop',
-            width: '',
-          },
-          {
-            name: 'Tablet',
-            width: '768px',
-            widthMedia: '992px',
-          },
-          {
-            name: 'Mobile portrait',
-            width: '320px',
-            widthMedia: '575px',
-          }
-        ]
-      },
-      panels: {
-        defaults: [
-          {
-            id: 'layers',
-            el: '.panel__right',
-            resizable: {
-              maxDim: 350,
-              minDim: 200,
-              tc: 0,
-              cl: 1,
-              cr: 0,
-              bc: 0,
-              keyWidth: 'flex-basis',
-            },
-          },
-          {
-            id: 'panel-switcher',
-            el: '.panel__switcher',
-            buttons: [
-              {
-                id: 'show-layers',
-                active: true,
-                label: 'Camadas',
-                command: 'show-layers',
-                togglable: false,
-              },
-              {
-                id: 'show-style',
-                active: true,
-                label: 'Estilos',
-                command: 'show-styles',
-                togglable: false,
-              },
-              {
-                id: 'show-traits',
-                active: true,
-                label: 'Configurações',
-                command: 'show-traits',
-                togglable: false,
-              }
+        pluginsOpts: {
+          // [grapesjsPresetWebpage]: {
+            // Opções para o preset, se necessário
+            // ex: blocks: ['h1-block', 'text', 'image', 'link', 'section', 'column1', 'column2', 'column3'],
+          // },
+        },
+        // Configurações de Canvas (onde a página é renderizada)
+        canvas: {
+            styles: [
+                // Adicione links para seus CSS globais se quiser que o editor os reflita
+                // 'https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css',
+                // '/path/to/your/global.css' // Se servido estaticamente
             ],
-          }
-        ]
+            // scripts: [
+            //    // Adicione links para JS globais se necessário
+            // ],
+        },
+        // Você pode querer configurar o Asset Manager para upload de imagens
+        assetManager: {
+          // Exemplo de configuração para upload (requer backend)
+          // assets: [
+          //  'http://placehold.it/350x250/78c5d6/fff/image1.jpg',
+          // ],
+          // upload: '/api/assets/upload', // Endpoint do seu backend para upload de assets
+          // uploadName: 'files',
+        },
+        // Configurar blocos, painéis, comandos, etc.
+        // ...
+      });
+
+      // Carregar dados iniciais se existirem
+      if (initialData) {
+        try {
+          editor.loadProjectData(JSON.parse(initialData));
+        } catch (e) {
+          console.error("Erro ao carregar dados no GrapesJS:", e);
+          // Se initialData for HTML, use editor.setComponents(initialData);
+        }
+      } else {
+        // Conteúdo padrão para uma nova página
+        editor.setComponents(`
+          <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1>Sua Landing Page Incrível Começa Aqui!</h1>
+            <p>Arraste e solte blocos da barra lateral para construir sua página.</p>
+          </div>
+        `);
       }
-    });
+      
+      // Exemplo de como adicionar um botão de salvar customizado (se não usar storageManager remoto)
+      editor.Panels.addButton('options', [{
+        id: 'save-db',
+        className: 'fa fa-floppy-o', // Use ícones de sua preferência ou texto
+        label: 'Salvar',
+        command: () => {
+          const jsonData = JSON.stringify(editor.getProjectData());
+          const htmlData = editor.getHtml() || '';
+          const cssData = editor.getCss() || '';
+          onSave(jsonData, htmlData, cssData);
+        },
+        attributes: { title: 'Salvar no Banco de Dados' }
+      }]);
 
-    // Comandos customizados
-    gjsEditor.Commands.add('set-device-desktop', {
-      run: (editor) => editor.setDevice('Desktop')
-    });
-    gjsEditor.Commands.add('set-device-tablet', {
-      run: (editor) => editor.setDevice('Tablet')
-    });
-    gjsEditor.Commands.add('set-device-mobile', {
-      run: (editor) => editor.setDevice('Mobile portrait')
-    });
 
-    setEditor(gjsEditor);
+      setEditorInstance(editor);
+    }
 
+    // Cleanup ao desmontar o componente
     return () => {
-      if (gjsEditor) {
-        gjsEditor.destroy();
-        setEditor(null);
+      if (editorInstance) {
+        editorInstance.destroy();
+        setEditorInstance(null);
       }
     };
-  }, []);
-
-  // Carregar dados da landing page no editor
-  useEffect(() => {
-    if (editor && landingPage) {
-      try {
-        editor.setComponents(landingPage.html || '');
-        editor.setStyle(landingPage.css || '');
-      } catch (error) {
-        console.error('Error loading landing page data:', error);
-        toast.error('Erro ao carregar os dados da landing page');
-      }
-    }
-  }, [editor, landingPage]);
-
-  // Função para salvar
-  const handleSave = useCallback(async () => {
-    if (!editor) return;
-
-    setIsSaving(true);
-    try {
-      const html = editor.getHtml();
-      const css = editor.getCss();
-      await mutation.mutateAsync({ html, css });
-    } catch (error) {
-      console.error("Failed to save:", error);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [editor, mutation]);
-
-  // Função para alternar preview
-  const togglePreview = useCallback(() => {
-    if (!editor) return;
-    
-    // O GrapesJS alterna o preview com o mesmo comando
-    editor.runCommand('core:preview');
-    setIsPreviewMode(!editor.Commands.isActive('core:preview'));
-
-  }, [editor]);
-
-  // Função para alterar dispositivo
-  const handleDeviceChange = useCallback((device: string) => {
-    if (!editor) return;
-    
-    setCurrentDevice(device);
-    switch (device) {
-      case 'desktop':
-        editor.setDevice('Desktop');
-        break;
-      case 'tablet':
-        editor.setDevice('Tablet');
-        break;
-      case 'mobile':
-        editor.setDevice('Mobile portrait');
-        break;
-    }
-  }, [editor]);
-
-  // Auto-save (opcional)
-  useEffect(() => {
-    const saveInterval = 30000; // 30 segundos
-    let intervalId: NodeJS.Timeout;
-
-    if (editor && !isSaving) {
-      intervalId = setInterval(() => {
-        // A propriedade "dirty" não é padrão, mas pode ser verificada assim:
-        const hasChanges = editor.getDirtyCount() > 0;
-        if (hasChanges) {
-          handleSave();
-        }
-      }, saveInterval);
-    }
-
-    return () => clearInterval(intervalId);
-  }, [editor, isSaving, handleSave]);
-
-
-  if (isLoading && id) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin mr-2" />
-        <span>Carregando editor...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <div className="text-red-500 mb-4">
-          Erro ao carregar a landing page.
-        </div>
-        <Button onClick={() => navigate('/landingpages')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar
-        </Button>
-      </div>
-    );
-  }
+  }, [initialData, onSave]); // Adicionado onSave às dependências
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
-      {/* Header */}
-      <div className="flex justify-between items-center p-2 bg-white dark:bg-gray-900 border-b shadow-sm">
-        <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/landingpages')}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
-          </Button>
-          <h1 className="text-md font-semibold text-gray-800 dark:text-white truncate">
-            {landingPage?.name || 'Novo Site'}
-          </h1>
+    <div className="grapesjs-editor-wrapper border rounded-md overflow-hidden">
+        {/* O ID do container pode ser customizado */}
+        <div ref={editorRef} id="gjs">
+            {/* GrapesJS será renderizado aqui */}
         </div>
-
-        {/* Device Controls */}
-        <div className="flex items-center space-x-2">
-          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-            <Button
-              variant={currentDevice === 'desktop' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => handleDeviceChange('desktop')}
-            >
-              <Monitor className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={currentDevice === 'tablet' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => handleDeviceChange('tablet')}
-            >
-              <Tablet className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={currentDevice === 'mobile' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => handleDeviceChange('mobile')}
-            >
-              <Smartphone className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <Button variant="outline" size="sm" onClick={togglePreview}>
-            <Eye className="mr-2 h-4 w-4" />
-            {isPreviewMode ? 'Editar' : 'Preview'}
-          </Button>
-
-          <Button onClick={handleSave} disabled={isSaving} size="sm">
-            {isSaving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            Salvar
-          </Button>
-        </div>
-      </div>
-
-      {/* Editor Container */}
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1">
-          <div ref={editorRef} className="h-full w-full" />
-        </div>
-
-        {/* Right Panel */}
-        <div className="panel__right w-64 border-l bg-white dark:bg-gray-900 overflow-y-auto">
-          <div className="panel__switcher border-b">
-            {/* Os botões do painel serão renderizados aqui pelo GrapesJS */}
-          </div>
-          {/* O conteúdo das abas (layers, styles, traits) será renderizado aqui */}
-        </div>
-      </div>
     </div>
   );
 };

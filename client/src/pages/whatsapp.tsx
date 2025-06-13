@@ -16,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-    MessageSquare, ListChecks, Trash2 as IconTrash, Image as ImageIcon, Clock, Variable, Waypoints, HelpCircle, Plus, Send, RadioTower, UserCheck, LogOut, Save, Play, Square, Filter, Layers, Activity, Workflow, Mic, FileText as FileIcon, MapPin, Repeat, Webhook, X, BadgeAlert, Bot, Clock10, Tag, Shuffle,
+    MessageSquare, ListChecks, Trash2 as IconTrash, Image as ImageIcon, Clock, Variable, Waypoints, HelpCircle, Plus, Send, RadioTower, UserCheck, LogOut, Save, Play, Square, Filter, Layers, Activity, Workflow, Mic, FileText as FileIcon, MapPin, Repeat, Webhook, X, AlertTriangle, Bot, Clock10, Tag, Shuffle,
     MessageCircle as MsgIcon, Phone, Search, MoreVertical, Check, CheckCheck, Paperclip, Smile,
     Loader2
 } from 'lucide-react';
@@ -476,7 +476,7 @@ const WhatsApp: React.FC = () => {
               <CardContent className="p-0">
                 <ScrollArea className="h-[calc(100vh-380px)]">
                   {isLoadingContacts ? ( <div className="p-4 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin inline-block mr-2"/> Carregando...</div> ) 
-                  : contactsError ? ( <div className="p-4 text-center text-destructive"><BadgeAlert className="w-5 h-5 inline-block mr-2"/>Erro ao buscar contatos.</div> ) 
+                  : contactsError ? ( <div className="p-4 text-center text-destructive"><AlertTriangle className="w-5 h-5 inline-block mr-2"/>Erro ao buscar contatos.</div> ) 
                   : (
                     filteredContacts.map((contact) => (
                       <div key={contact.contactNumber} className={`p-4 cursor-pointer border-b transition-colors hover:bg-accent/50 ${ selectedContact?.contactNumber === contact.contactNumber ? 'bg-accent' : '' }`} onClick={() => setSelectedContact(contact)} >
@@ -510,7 +510,7 @@ const WhatsApp: React.FC = () => {
                     <ScrollArea className="flex-1 p-4">
                       <div className="space-y-4">
                         {isLoadingMessages ? ( <div className="p-4 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin inline-block mr-2"/> Carregando mensagens...</div> )
-                        : messagesError ? ( <div className="p-4 text-center text-destructive"><BadgeAlert className="w-5 h-5 inline-block mr-2"/>Erro ao buscar mensagens.</div> )
+                        : messagesError ? ( <div className="p-4 text-center text-destructive"><AlertTriangle className="w-5 h-5 inline-block mr-2"/>Erro ao buscar mensagens.</div> )
                         : messages.length === 0 ? (<div className="text-center text-muted-foreground p-4">Sem mensagens nesta conversa.</div>) 
                         : (
                           messages.map((msg) => (
@@ -558,7 +558,7 @@ const WhatsApp: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                     {isLoadingFlowsList ? <div className="text-center py-8"><Loader2 className="w-8 h-8 text-primary mx-auto animate-spin"/> Carregando...</div> 
-                    : flowsListError ? <div className="text-center py-8 text-destructive"><BadgeAlert className="w-8 h-8 mx-auto mb-2"/>Erro ao carregar fluxos.</div> 
+                    : flowsListError ? <div className="text-center py-8 text-destructive"><AlertTriangle className="w-8 h-8 mx-auto mb-2"/>Erro ao carregar fluxos.</div> 
                     : flowsList.length === 0 ? (<p className="text-muted-foreground text-center py-8">Nenhum fluxo encontrado.</p>) 
                     : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

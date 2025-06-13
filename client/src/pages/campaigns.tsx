@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { cva } from "class-variance-authority";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
