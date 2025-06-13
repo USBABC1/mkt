@@ -3,12 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import grapesjs, { Editor } from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
 import gjsPresetWebpage from 'grapesjs-preset-webpage';
-import { API_URL } from '@/lib/api';
+import { getApiUrl, api } from '@/lib/api'; // CORREÇÃO AQUI
 import { Button } from './ui/button';
 import { ArrowLeft, Save, Loader2, Eye, Code, Smartphone, Tablet, Monitor } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import { toast } from 'sonner'; // Assumindo que você usa sonner para toasts
+import { toast } from 'sonner';
 
 interface LandingPageData {
   id: string;
@@ -74,7 +73,7 @@ const GrapesJsEditor = () => {
     if (!editorRef.current) return;
 
     const assetManager = {
-      upload: `${API_URL}/assets/upload`,
+      upload: `${getApiUrl()}/assets/upload`, // CORREÇÃO AQUI
       uploadName: 'files',
       multiUpload: true,
       autoAdd: 1,
@@ -215,15 +214,6 @@ const GrapesJsEditor = () => {
       run: (editor) => editor.setDevice('Mobile portrait')
     });
 
-    // Event listeners
-    gjsEditor.on('component:selected', () => {
-      // Lógica quando um componente é selecionado
-    });
-
-    gjsEditor.on('component:deselected', () => {
-      // Lógica quando um componente é desselecionado
-    });
-
     setEditor(gjsEditor);
 
     return () => {
@@ -267,13 +257,11 @@ const GrapesJsEditor = () => {
   const togglePreview = useCallback(() => {
     if (!editor) return;
     
-    if (isPreviewMode) {
-      editor.runCommand('core:canvas-clear');
-    } else {
-      editor.runCommand('core:preview');
-    }
-    setIsPreviewMode(!isPreviewMode);
-  }, [editor, isPreviewMode]);
+    // O GrapesJS alterna o preview com o mesmo comando
+    editor.runCommand('core:preview');
+    setIsPreviewMode(!editor.Commands.isActive('core:preview'));
+
+  }, [editor]);
 
   // Função para alterar dispositivo
   const handleDeviceChange = useCallback((device: string) => {
@@ -282,29 +270,35 @@ const GrapesJsEditor = () => {
     setCurrentDevice(device);
     switch (device) {
       case 'desktop':
-        editor.runCommand('set-device-desktop');
+        editor.setDevice('Desktop');
         break;
       case 'tablet':
-        editor.runCommand('set-device-tablet');
+        editor.setDevice('Tablet');
         break;
       case 'mobile':
-        editor.runCommand('set-device-mobile');
+        editor.setDevice('Mobile portrait');
         break;
     }
   }, [editor]);
 
   // Auto-save (opcional)
   useEffect(() => {
-    if (!editor) return;
+    const saveInterval = 30000; // 30 segundos
+    let intervalId: NodeJS.Timeout;
 
-    const autoSaveInterval = setInterval(() => {
-      if (editor.getDirtyCount() > 0) {
-        handleSave();
-      }
-    }, 30000); // Auto-save a cada 30 segundos
+    if (editor && !isSaving) {
+      intervalId = setInterval(() => {
+        // A propriedade "dirty" não é padrão, mas pode ser verificada assim:
+        const hasChanges = editor.getDirtyCount() > 0;
+        if (hasChanges) {
+          handleSave();
+        }
+      }, saveInterval);
+    }
 
-    return () => clearInterval(autoSaveInterval);
-  }, [editor, handleSave]);
+    return () => clearInterval(intervalId);
+  }, [editor, isSaving, handleSave]);
+
 
   if (isLoading && id) {
     return (
@@ -319,7 +313,7 @@ const GrapesJsEditor = () => {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <div className="text-red-500 mb-4">
-          Erro ao carregar a landing page
+          Erro ao carregar a landing page.
         </div>
         <Button onClick={() => navigate('/landingpages')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -330,37 +324,37 @@ const GrapesJsEditor = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="flex justify-between items-center p-3 bg-white dark:bg-gray-900 border-b shadow-sm">
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" onClick={() => navigate('/landingpages')}>
+      <div className="flex justify-between items-center p-2 bg-white dark:bg-gray-900 border-b shadow-sm">
+        <div className="flex items-center space-x-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/landingpages')}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
           </Button>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+          <h1 className="text-md font-semibold text-gray-800 dark:text-white truncate">
             {landingPage?.name || 'Novo Site'}
           </h1>
         </div>
 
         {/* Device Controls */}
         <div className="flex items-center space-x-2">
-          <div className="flex border rounded-lg p-1">
+          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
             <Button
-              variant={currentDevice === 'desktop' ? 'default' : 'ghost'}
+              variant={currentDevice === 'desktop' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => handleDeviceChange('desktop')}
             >
               <Monitor className="h-4 w-4" />
             </Button>
             <Button
-              variant={currentDevice === 'tablet' ? 'default' : 'ghost'}
+              variant={currentDevice === 'tablet' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => handleDeviceChange('tablet')}
             >
               <Tablet className="h-4 w-4" />
             </Button>
             <Button
-              variant={currentDevice === 'mobile' ? 'default' : 'ghost'}
+              variant={currentDevice === 'mobile' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => handleDeviceChange('mobile')}
             >
@@ -368,12 +362,12 @@ const GrapesJsEditor = () => {
             </Button>
           </div>
 
-          <Button variant="outline" onClick={togglePreview}>
+          <Button variant="outline" size="sm" onClick={togglePreview}>
             <Eye className="mr-2 h-4 w-4" />
             {isPreviewMode ? 'Editar' : 'Preview'}
           </Button>
 
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSave} disabled={isSaving} size="sm">
             {isSaving ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -385,16 +379,17 @@ const GrapesJsEditor = () => {
       </div>
 
       {/* Editor Container */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex overflow-hidden">
         <div className="flex-1">
-          <div ref={editorRef} className="h-full" />
+          <div ref={editorRef} className="h-full w-full" />
         </div>
 
         {/* Right Panel */}
-        <div className="panel__right w-80 border-l bg-white dark:bg-gray-900">
-          <div className="panel__switcher border-b p-2">
+        <div className="panel__right w-64 border-l bg-white dark:bg-gray-900 overflow-y-auto">
+          <div className="panel__switcher border-b">
             {/* Os botões do painel serão renderizados aqui pelo GrapesJS */}
           </div>
+          {/* O conteúdo das abas (layers, styles, traits) será renderizado aqui */}
         </div>
       </div>
     </div>
