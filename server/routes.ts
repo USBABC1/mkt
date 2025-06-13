@@ -178,7 +178,6 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
       }
     });
     
-    // ✅ CORREÇÃO: Rota agora aceita as opções avançadas e tem o path corrigido.
     apiRouter.post('/landingpages/preview-advanced', async (req: AuthenticatedRequest, res, next) => {
         try {
             const { prompt, reference, options } = req.body;
@@ -194,6 +193,39 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     apiRouter.put('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { const lpData = schemaShared.insertLandingPageSchema.partial().parse(req.body); const updated = await storage.updateLandingPage(parseInt(req.params.id), lpData, req.user!.id); if (!updated) return res.status(404).json({ error: "Página não encontrada." }); res.json(updated); } catch(e){ next(e); }});
     apiRouter.delete('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteLandingPage(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch(e){ next(e); }});
     
+    // ✅ ROTAS CORRIGIDAS: Para gerar variações e otimizar LPs usando o novo Gemini Service
+    apiRouter.post('/landingpages/:id/generate-variations', async (req: AuthenticatedRequest, res, next) => {
+        try {
+            const lp = await storage.getLandingPage(parseInt(req.params.id), req.user!.id);
+            if (!lp) return res.status(404).json({ error: 'Página não encontrada.' });
+            
+            const prompt = lp.description || lp.name;
+            if (!prompt) return res.status(400).json({ error: 'A página não tem descrição ou nome para basear as variações.' });
+
+            const baseOptions = lp.generationOptions || {};
+            const count = req.body.count || 2; // Gera 2 variações por padrão
+
+            const variations = await geminiService.generateVariations(prompt, count, baseOptions);
+            res.json({ variations });
+        } catch (e) {
+            next(e);
+        }
+    });
+    
+    apiRouter.post('/landingpages/:id/optimize', async (req: AuthenticatedRequest, res, next) => {
+        try {
+            const lp = await storage.getLandingPage(parseInt(req.params.id), req.user!.id);
+            if (!lp || !lp.grapesJsData?.html) return res.status(404).json({ error: 'Página ou seu conteúdo HTML não encontrado.' });
+            
+            const optimizationGoals = req.body.goals; // Permite que o front-end envie metas específicas
+
+            const optimizedHtml = await geminiService.optimizeLandingPage(lp.grapesJsData.html, optimizationGoals);
+            res.json({ htmlContent: optimizedHtml });
+        } catch (e) {
+            next(e);
+        }
+    });
+
     // Rotas de Assets para Landing Pages (GrapesJS)
     apiRouter.post('/assets/lp-upload', lpAssetUpload.array('files'), (req: AuthenticatedRequest, res, next) => { try { if (!req.files || !Array.isArray(req.files) || req.files.length === 0) return res.status(400).json({ error: "Nenhum arquivo enviado." }); const urls = req.files.map(file => `${APP_BASE_URL}/${UPLOADS_DIR_NAME}/lp-assets/${file.filename}`); res.status(200).json(urls); } catch(e){ next(e); }});
 
