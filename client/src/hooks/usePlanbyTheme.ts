@@ -1,48 +1,88 @@
-import { useMemo, useState, useCallback } from "react";
-import {
-  ThemeType,
-  useTheme as usePlanbyThemeMode,
-  Epg,
-  Channel,
-} from "@planby/core";
-import { useTheme } from "next-themes";
-// Em uma aplicação real, estes dados viriam de uma API.
-import { epg as initialEpg, channels as initialChannels } from "@/lib/planbyData";
+import { useTheme } from "@/components/theme-provider";
+import { Theme } from "@planby/react";
 
-export function useApp() {
-  const { theme: mode } = useTheme();
+export function usePlanbyTheme(): Theme {
+  const { theme: appTheme } = useTheme();
 
-  // Mantém os dados do agendamento no estado do React.
-  const [channels] = useState<Channel[]>(initialChannels);
-  const [epg, setEpg] = useState<Epg>(initialEpg);
+  const isDark = appTheme === "dark";
 
-  const theme = useMemo<ThemeType>(
-    () => ({
-      ...usePlanbyThemeMode(mode as "light" | "dark"),
-      // Aqui você pode adicionar outras personalizações de tema se necessário
-      // Ex: sidebar: { ... }, program: { ... }
-    }),
-    [mode]
-  );
-
-  /**
-   * ✅ CORREÇÃO: Implementação da função que faltava.
-   * A biblioteca de agendamento precisa de uma função para lidar com
-   * mudanças nos "programas" (quando um utilizador arrasta ou redimensiona um item).
-   * Esta função será passada para o componente principal do agendamento.
-   */
-  const handleCampaignsChange = useCallback((newEpg: Epg) => {
-    // Em uma aplicação real, aqui você faria uma chamada de API para salvar as alterações no banco de dados.
-    // Para este exemplo, apenas atualizamos o estado local para refletir a mudança na UI.
-    console.log("Os agendamentos (EPG) mudaram. Novo estado:", newEpg);
-    setEpg(newEpg);
-  }, []);
-
-  return {
-    theme,
-    channels,
-    epg,
-    // Retornando a função com o nome que o componente espera ('onCampaignsChange').
-    onCampaignsChange: handleCampaignsChange,
+  const theme: Theme = {
+    primary: {
+      main: isDark ? "hsl(210, 90%, 55%)" : "hsl(210, 85%, 50%)",
+      contrastText: "#fff",
+    },
+    secondary: {
+      main: isDark ? "hsl(220, 15%, 25%)" : "hsl(220, 10%, 80%)",
+      contrastText: isDark ? "#fff" : "#000",
+    },
+    background: {
+      main: isDark ? "hsl(220, 15%, 8%)" : "hsl(220, 15%, 97%)",
+      sidebar: isDark ? "hsl(220, 18%, 4%)" : "hsl(220, 15%, 96%)",
+      planner: isDark ? "hsl(220, 15%, 8%)" : "hsl(220, 15%, 97%)",
+    },
+    text: {
+      primary: isDark ? "hsl(210, 15%, 92%)" : "hsl(220, 10%, 20%)",
+      secondary: isDark ? "hsl(210, 10%, 60%)" : "hsl(220, 5%, 50%)",
+    },
+    loader: {
+        background: 'rgba(0, 0, 0, 0.5)',
+        color: 'hsl(var(--primary))',
+    },
+    // Typographies
+    typography: {
+      fontFamily: "'Montserrat', sans-serif",
+      fontSize: 12,
+    },
+    // Borders
+    border: {
+      radius: 8,
+      width: 1,
+      color: isDark ? "hsl(220, 15%, 18%)" : "hsl(220, 13%, 91%)",
+    },
+    // Planner
+    planner: {
+      padding: {
+        top: 20,
+        bottom: 20,
+      },
+    },
+    // Timeline
+    timeline: {
+      height: 48,
+      border: {
+        color: isDark ? "hsl(220, 15%, 15%)" : "hsl(220, 13%, 93%)",
+        width: 1,
+      },
+    },
+    // Sidebar
+    sidebar: {
+      width: 220,
+      border: {
+        color: isDark ? "hsl(220, 15%, 12%)" : "hsl(220, 13%, 90%)",
+        width: 1,
+      },
+    },
+    // Channel
+    channel: {
+      width: 220,
+      height: 80,
+      padding: {
+        top: 8,
+        bottom: 8,
+        left: 8,
+        right: 8,
+      },
+    },
+    // Program
+    program: {
+      padding: {
+        top: 8,
+        bottom: 8,
+        left: 8,
+        right: 8,
+      },
+    },
   };
+
+  return theme;
 }
