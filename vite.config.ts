@@ -69,7 +69,7 @@ export default defineConfig(({ command, mode }) => {
       include: [
         '@grapesjs/studio-sdk',
         '@grapesjs/studio-sdk-plugins',
-        'hono/client' 
+        'hono/client',
         'class-variance-authority'
       ],
     },
