@@ -157,50 +157,7 @@ export class DatabaseStorage {
         await this.db.delete(schema.creatives).where(and(eq(schema.creatives.id, id), eq(schema.creatives.userId, userId)));
     }
     
-    // --- Métodos de Landing Pages (CORRIGIDOS E COMPLETOS) ---
-    async getLandingPages(userId: number): Promise<schema.LandingPage[]> {
-        return this.db.query.landingPages.findMany({
-            where: eq(schema.landingPages.userId, userId),
-            orderBy: [desc(schema.landingPages.createdAt)],
-        });
-    }
-
-    async getLandingPage(id: number, userId: number): Promise<schema.LandingPage | undefined> {
-        return this.db.query.landingPages.findFirst({
-            where: and(eq(schema.landingPages.id, id), eq(schema.landingPages.userId, userId))
-        });
-    }
-
-    async getLandingPageBySlug(slug: string): Promise<schema.LandingPage | undefined> {
-        return this.db.query.landingPages.findFirst({ where: eq(schema.landingPages.slug, slug) });
-    }
-
-    async createLandingPage(lpData: schema.InsertLandingPage, userId: number): Promise<schema.LandingPage> {
-        const result = await this.db.insert(schema.landingPages).values({ ...lpData, userId }).returning();
-        return result[0];
-    }
-    
-    async updateLandingPage(id: number, lpData: Partial<schema.InsertLandingPage>, userId: number): Promise<schema.LandingPage | undefined> {
-        const result = await this.db.update(schema.landingPages)
-            .set({ ...lpData, updatedAt: new Date() })
-            .where(and(eq(schema.landingPages.id, id), eq(schema.landingPages.userId, userId)))
-            .returning();
-        return result[0];
-    }
-
-    async deleteLandingPage(id: number, userId: number): Promise<void> {
-        await this.db.delete(schema.landingPages).where(and(eq(schema.landingPages.id, id), eq(schema.landingPages.userId, userId)));
-    }
-
-    async generateUniqueSlug(base: string): Promise<string> {
-        let slug = base;
-        let counter = 1;
-        while (await this.getLandingPageBySlug(slug)) {
-            slug = `${base}-${counter}`;
-            counter++;
-        }
-        return slug;
-    }
+    // Métodos de Landing Pages foram movidos para server/api/landingpages.storage.ts
 
     // --- Métodos de Copies ---
     async getCopies(userId: number, campaignId?: number, phase?: string, purpose?: string, search?: string) {
