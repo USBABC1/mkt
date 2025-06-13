@@ -1,42 +1,75 @@
-import React from "react";
-import { Planby, usePlanby } from "@planby/core";
-import { useApp } from "@/hooks/usePlanbyTheme";
-import { Timeline, ProgramItem, ChannelItem } from "../PlanbyComponents"; // Ajuste o caminho se necessário
+// vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
+import { fileURLToPath } from 'node:url';
 
-export const PlanbySchedule: React.FC = () => {
-  // ✅ CORREÇÃO 1: Obter a função 'onCampaignsChange' e o 'theme' do nosso hook.
-  const { channels, epg, theme, onCampaignsChange } = useApp();
-
-  const { getLayoutProps } = usePlanby({
-    channels,
-    epg,
-    dayWidth: 7200,
-    sidebarWidth: 100,
-    itemHeight: 80,
-    isSidebar: true,
-    isTimeline: true,
-    isLine: true,
-    isBaseTimeFormat: true,
-    // ✅ CORREÇÃO 2: Passar a função para o hook da biblioteca `usePlanby`.
-    // É isso que vai resolver o erro 'cannot read ... of undefined'.
-    onCampaignsChange,
-  });
-
-  // A chamada duplicada para useApp() foi removida.
-
-  return (
-    <div style={{ height: "calc(100vh - 100px)", width: "100%" }}>
-      <Planby
-        {...getLayoutProps()}
-        renderTimeline={(props) => <Timeline {...props} />}
-        renderProgram={({ program, ...rest }) => (
-          <ProgramItem key={program.data.id} program={program} {...rest} />
-        )}
-        renderChannel={({ channel }) => (
-          <ChannelItem key={channel.uuid} channel={channel} />
-        )}
-        theme={theme}
-      />
-    </div>
-  );
-};
+export default defineConfig(({ command, mode }) => {
+  const plugins = [
+    react(),
+  ];
+  
+  if (mode !== "production" && process.env.REPL_ID) {
+    import("@replit/vite-plugin-cartographer")
+      .then(module => {
+        if (module && module.cartographer) {
+          plugins.push(module.cartographer());
+        } else {
+          console.warn("@replit/vite-plugin-cartographer could not be loaded as expected.");
+        }
+      })
+      .catch(e => console.warn("@replit/vite-plugin-cartographer not found or failed to load, skipping.", e));
+  }
+  
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  
+  return {
+    plugins: plugins,
+    define: {
+      'import.meta.env.VITE_FORCE_AUTH_BYPASS': JSON.stringify(process.env.VITE_FORCE_AUTH_BYPASS || process.env.FORCE_AUTH_BYPASS || 'false'),
+      'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || process.env.APP_BASE_URL || ''),
+      'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || ''),
+    },
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "client", "src"),
+        "@shared": path.resolve(__dirname, "shared"),
+        "@assets": path.resolve(__dirname, "attached_assets"), 
+        "@/types": path.resolve(__dirname, "client", "src", "types"),
+        "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
+      },
+    },
+    root: path.resolve(__dirname, "client"),
+    build: {
+      outDir: path.resolve(__dirname, "dist/public"),
+      emptyOutDir: true,
+      // Remove the external configuration - let Vite handle bundling
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // Split large dependencies into separate chunks
+            'grapesjs': ['@grapesjs/studio-sdk'],
+            'grapesjs-plugins': ['@grapesjs/studio-sdk-plugins'],
+          }
+        }
+      },
+    },
+    server: { 
+      port: 3000, 
+      host: '0.0.0.0',
+      allowedHosts: [
+        'localhost', '127.0.0.1', '0.0.0.0',
+        'work-1-cixzsejsspdqlyvw.prod-runtime.all-hands.dev',
+        'work-2-cixzsejsspdqlyvw.prod-runtime.all-hands.dev',
+        '.all-hands.dev', '.prod-runtime.all-hands.dev'
+      ],
+    },
+    // Help Vite handle the GrapesJS packages
+    optimizeDeps: {
+      include: [
+        '@grapesjs/studio-sdk',
+        '@grapesjs/studio-sdk-plugins'
+      ],
+    },
+  };
+});
