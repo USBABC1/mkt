@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LineChart, BarChart, DoughnutChart } from '@/components/charts'; // Removido chartColors pois não é usado diretamente aqui
 import { apiRequest } from '@/lib/api';
+import { cva } from "class-variance-authority"
 import {
   TrendingUp,
   TrendingDown,
