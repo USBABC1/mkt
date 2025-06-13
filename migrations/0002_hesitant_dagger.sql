@@ -1,8 +1,14 @@
+-- Este script cria tipos, tabelas e define relacionamentos para uma aplicação de gerenciamento de campanhas.
+-- As verificações "IF NOT EXISTS" garantem que o script pode ser executado várias vezes sem causar erros.
+
 DO $$
 BEGIN
+    -- Cria o tipo ENUM 'integration_platform' se ele não existir.
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'integration_platform') THEN
         CREATE TYPE "public"."integration_platform" AS ENUM('shopify', 'hotmart', 'meta', 'google');
     END IF;
+
+    -- Cria o tipo ENUM 'task_status' se ele não existir.
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'task_status') THEN
         CREATE TYPE "public"."task_status" AS ENUM('pending', 'in_progress', 'completed', 'on_hold');
     END IF;
@@ -43,9 +49,7 @@ CREATE TABLE IF NOT EXISTS "integrations" (
 --> statement-breakpoint
 DO $$
 BEGIN
-    -- This statement alters the 'password' column to allow NULLs. It's idempotent in nature, 
-    -- as attempting to drop a non-existent NOT NULL constraint doesn't typically cause an error in a single run.
-    -- However, for full script re-runnability, we check if the column is currently NOT NULL.
+    -- Altera a coluna 'password' na tabela 'users' para permitir valores NULL, se ainda não permitir.
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password' AND is_nullable = 'NO') THEN
         ALTER TABLE "users" ALTER COLUMN "password" DROP NOT NULL;
     END IF;
@@ -54,12 +58,14 @@ $$;
 --> statement-breakpoint
 DO $$
 BEGIN
+    -- Adiciona a coluna 'is_template' na tabela 'campaigns', se ela não existir.
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='campaigns' AND column_name='is_template') THEN
         ALTER TABLE "campaigns" ADD COLUMN "is_template" boolean DEFAULT false NOT NULL;
     END IF;
 END
 $$;
 --> statement-breakpoint
+-- Adiciona as chaves estrangeiras, se não existirem.
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'campaign_phases_campaign_id_campaigns_id_fk') THEN
@@ -91,8 +97,13 @@ BEGIN
     END IF;
 END
 $$;
+--> statement-breakpoint
+-- CORREÇÃO: Bloco para adicionar a coluna 'generation_options' na tabela 'landing_pages'.
+-- A verificação foi corrigida para checar se a coluna já existe na tabela correta.
+DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'integrations_user_id_users_id_fk') THEN
-ALTER TABLE "public"."landing_pages" ADD COLUMN "generation_options" jsonb;    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'landing_pages' AND column_name = 'generation_options') THEN
+        ALTER TABLE "public"."landing_pages" ADD COLUMN "generation_options" jsonb;
+    END IF;
 END
 $$;
