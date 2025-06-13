@@ -1,97 +1,137 @@
-// client/src/components/grapesjs-editor.tsx
-import { useEffect, useRef } from 'react';
-import grapesjs, { type Editor } from 'grapesjs';
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import grapesjs, { Editor } from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
 import gjsPresetWebpage from 'grapesjs-preset-webpage';
 import { API_URL } from '@/lib/api';
 import { Button } from './ui/button';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
-// Props atualizadas para receber os handlers onSave e onBack
-interface GrapesJSEditorProps {
-  initialData: {
-    html?: string;
-    css?: string;
-    components?: any;
-    styles?: any;
-  };
-  onSave: (data: { html: string; css: string; components: any; styles: any; }) => void;
-  onBack: () => void;
-  isSaving?: boolean;
-}
+const GrapesJsEditor = () => {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const [editor, setEditor] = useState<Editor | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
-export default function GrapesJSEditor({ initialData, onSave, onBack, isSaving }: GrapesJSEditorProps) {
-  const editorEl = useRef<HTMLDivElement>(null);
-  const editorInstance = useRef<Editor | null>(null);
-
-  const handleSaveClick = () => {
-    if (editorInstance.current) {
-      onSave({
-        html: editorInstance.current.getHtml(),
-        css: editorInstance.current.getCss(),
-        components: editorInstance.current.getComponents(),
-        styles: editorInstance.current.getStyle(),
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (editorInstance.current) {
-        return;
-    }
-    if (editorEl.current) {
-      const editor = grapesjs.init({
-        container: editorEl.current,
-        fromElement: false,
-        height: 'calc(100vh - 70px)', // Ajusta altura para a barra de botões
-        width: 'auto',
-        storageManager: false,
-        plugins: [gjsPresetWebpage],
-        pluginsOpts: {
-          [gjsPresetWebpage]: {},
+    const { data: landingPage, isLoading } = useQuery({
+        queryKey: ['landingpage', id],
+        queryFn: async () => {
+            if (!id) return null;
+            const res = await api.landingpages[':id'].$get({ param: { id } });
+            if (!res.ok) {
+                throw new Error('Failed to fetch landing page');
+            }
+            return await res.json();
         },
-        assetManager: {
-            assets: [],
-            upload: `${API_URL}/assets/lp-upload`,
+        enabled: !!id,
+    });
+
+    const mutation = useMutation({
+        mutationFn: async (data: { html: string; css: string }) => {
+            if (!id) throw new Error("No ID provided");
+            const res = await api.landingpages[':id'].$put({ 
+                param: { id },
+                json: data 
+            });
+            if (!res.ok) {
+                throw new Error('Failed to save landing page');
+            }
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['landingpages'] });
+            queryClient.invalidateQueries({ queryKey: ['landingpage', id] });
+        },
+    });
+
+    useEffect(() => {
+        const assetManager = {
+            upload: `${API_URL}/assets/upload`, 
             uploadName: 'files',
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('token')}`,
+        };
+
+        const gjsEditor = grapesjs.init({
+            container: '#gjs',
+            fromElement: true,
+            height: 'calc(100vh - 50px)',
+            width: 'auto',
+            plugins: [gjsPresetWebpage],
+            pluginsOpts: {
+                [gjsPresetWebpage]: {
+                    forms: true,
+                },
             },
-        },
-      });
-      
-      // Carrega dados iniciais
-      if (initialData?.components) {
-        editor.setComponents(JSON.parse(JSON.stringify(initialData.components)));
-        editor.setStyle(JSON.parse(JSON.stringify(initialData.styles)));
-      } else if (initialData?.html) {
-        editor.setComponents(initialData.html);
-      }
-      
-      editorInstance.current = editor;
-    }
+            assetManager,
+            storageManager: {
+                type: 'remote',
+                stepsBeforeSave: 1,
+                options: {
+                    remote: {
+                        onStore: (data, editor) => {
+                            const html = editor.getHtml();
+                            const css = editor.getCss();
+                            return { id, html, css };
+                        },
+                    }
+                }
+            },
+        });
+        setEditor(gjsEditor);
 
-    return () => {
-      editorInstance.current?.destroy();
-      editorInstance.current = null;
+        return () => {
+            gjsEditor.destroy();
+            setEditor(null);
+        };
+    }, [id]);
+
+    useEffect(() => {
+        if (editor && landingPage) {
+            editor.setComponents(landingPage.html || '');
+            editor.setStyle(landingPage.css || '');
+        }
+    }, [editor, landingPage]);
+
+    const handleSave = async () => {
+        if (editor) {
+            setIsSaving(true);
+            const html = editor.getHtml();
+            const css = editor.getCss();
+            try {
+                await mutation.mutateAsync({ html, css });
+            } catch (error) {
+                console.error("Failed to save:", error);
+            } finally {
+                setIsSaving(false);
+            }
+        }
     };
-  }, [initialData]);
 
-  return (
-    <div className='grapes-editor-container relative'>
-      {/* Barra de Ações no topo do editor */}
-      <div className="absolute top-0 left-0 w-full bg-background/80 backdrop-blur-sm p-2 flex justify-between items-center z-10 border-b">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar
-        </Button>
-        <h3 className='text-lg font-semibold'>Editor Visual</h3>
-        <Button onClick={handleSaveClick} disabled={isSaving}>
-          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          Salvar Alterações
-        </Button>
-      </div>
-      <div ref={editorEl} className="gjs-editor-wrapper pt-[60px]" />
-    </div>
-  );
-}
+    if (isLoading && id) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+        );
+    }
+    
+    return (
+        <div>
+            <div className="flex justify-between items-center p-2 bg-gray-100 dark:bg-gray-900">
+                <Button variant="ghost" onClick={() => navigate('/landingpages')}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+                </Button>
+                <h1 className="text-lg font-bold">{landingPage?.name || 'Novo Site'}</h1>
+                <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Salvar
+                </Button>
+            </div>
+            <div id="gjs"></div>
+        </div>
+    );
+};
+
+export default GrapesJsEditor;
