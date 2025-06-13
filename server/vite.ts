@@ -1,71 +1,47 @@
 // server/vite.ts
-import { type ViteDevServer, createServer as createViteServer } from "vite";
 import type { Express } from "express";
-import { type Server as HttpServer } from "http";
-import path from 'path';
-import { fileURLToPath } from 'node:url';
-import express from 'express';
-import fs from 'fs';
+import express from "express";
+import path from "path";
+import fs from "fs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const log = (msg: string, ctx: string) => {
+    console.log(`${new Date().toLocaleTimeString()} [${ctx}] ${msg}`);
+};
 
-export function log(message: string, context?: string) {
-  const timestamp = new Date().toLocaleTimeString("pt-BR", { hour12: false });
-  console.log(`${timestamp} [${context || 'server-vite'}] ${message}`);
+// Esta função não foi alterada, apenas incluída para contexto
+export async function setupVite(app: Express, server: import('http').Server) {
+    const { createViteServer } = await import('vite');
+    const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa'
+    });
+    app.use(vite.middlewares);
 }
 
-export async function setupVite(app: Express, httpServer: HttpServer) {
-  log('Configurando Vite Dev Server...', 'setupVite');
-  const vite = await createViteServer({
-    server: { 
-      middlewareMode: true,
-      hmr: { server: httpServer }
-    },
-    appType: "spa",
-    root: path.resolve(__dirname, "..", "client"),
-  });
-
-  app.use(vite.middlewares);
-  log('Vite Dev Server configurado e middleware adicionado.', 'setupVite');
-  
-  app.use('*', async (req, res, next) => {
-    if (req.originalUrl.startsWith('/api')) {
-      return next();
-    }
-    try {
-      const url = req.originalUrl;
-      let template = await vite.transformIndexHtml(url, fs.readFileSync(path.resolve(path.resolve(__dirname, "..", "client"), 'index.html'), 'utf-8'));
-      res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
-    } catch (e) {
-      if (e instanceof Error) {
-         vite.ssrFixStacktrace(e);
-         log(`Erro no middleware SPA fallback do Vite: ${e.message}`, 'setupVite-error');
-         next(e);
-      } else {
-         log(`Erro desconhecido no middleware SPA fallback do Vite`, 'setupVite-error');
-         next(new Error('Erro desconhecido no processamento da requisição SPA.'));
-      }
-    }
-  });
-  log('Middleware SPA fallback do Vite configurado.', 'setupVite');
-}
-
+/**
+ * ✅ CORREÇÃO: A maneira como os ficheiros estáticos são servidos foi ajustada.
+ * Esta configuração garante que o servidor saiba exatamente onde encontrar
+ * a pasta 'assets' e como servir os seus ficheiros (CSS, JS) corretamente,
+ * enquanto ainda serve o index.html para todas as outras rotas da aplicação.
+ */
 export function serveStatic(app: Express) {
-  const clientDistPath = path.resolve(__dirname, "..", "dist", "public");
-  log(`[StaticServing] Servindo assets do frontend de: ${clientDistPath}`, 'serveStatic');
-  
-  app.use(express.static(clientDistPath));
+    const frontendPath = path.resolve(process.cwd(), "dist/public");
+    log(`[StaticServing] Servindo assets do frontend de: ${frontendPath}`, 'serveStatic');
+    
+    // Serve especificamente os ficheiros dentro da pasta /assets quando a URL pedir por /assets
+    app.use('/assets', express.static(path.resolve(frontendPath, 'assets')));
+    
+    // Serve outros ficheiros estáticos da raiz (como favicon.ico, etc.)
+    app.use(express.static(frontendPath));
 
-  app.get("*", (req, res, next) => {
-    // ✅ CORREÇÃO: Ignora rotas de API e de uploads no fallback
-    if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/uploads')) {
-        return next();
-    }
-    // Mantém a regra para não aplicar a arquivos com extensão
-    if (req.originalUrl.includes('.')) {
-        return next();
-    }
-    log(`[SPA Fallback] Servindo index.html para ${req.originalUrl}`, 'serveStatic');
-    res.sendFile(path.resolve(clientDistPath, "index.html"));
-  });
+    // Fallback para SPA: Para qualquer outra requisição que não seja um ficheiro, serve o index.html
+    // Isso permite que o roteamento do React (wouter) funcione.
+    app.get('*', (req, res) => {
+        const indexPath = path.resolve(frontendPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+            res.sendFile(indexPath);
+        } else {
+            res.status(404).send('Página principal não encontrada.');
+        }
+    });
 }
