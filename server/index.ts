@@ -4,11 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
 
-// Importando nossos módulos de rotas
+// Importando TODOS os nossos módulos de rotas
 import authRoutes from './routes/auth.routes';
 import landingPageRoutes from './routes/landingpage.routes';
-import campaignRoutes from './routes/campaign.routes'; // <-- NOVO
-import assetRoutes from './routes/asset.routes';       // <-- NOVO
+import campaignRoutes from './routes/campaign.routes';
+import assetRoutes from './routes/asset.routes';
+import chatRoutes from './routes/chat.routes';         // <-- NOVO
+import whatsappRoutes from './routes/whatsapp.routes'; // <-- NOVO
+import coreRoutes from './routes/core.routes';         // <-- NOVO
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,11 +23,14 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // --- REGISTRO DAS ROTAS MODULARES ---
-// Todas as rotas serão prefixadas com /api
+// A ordem aqui não importa funcionalmente, mas é bom manter organizado.
 app.use('/api', authRoutes);
+app.use('/api', coreRoutes);          // <-- NOVO
+app.use('/api', campaignRoutes);
 app.use('/api', landingPageRoutes);
-app.use('/api', campaignRoutes); // <-- NOVO
-app.use('/api', assetRoutes);    // <-- NOVO
+app.use('/api', assetRoutes);
+app.use('/api', chatRoutes);          // <-- NOVO
+app.use('/api', whatsappRoutes);      // <-- NOVO
 
 // --- ROTA "CATCH-ALL" ---
 app.get('*', (req, res) => {
