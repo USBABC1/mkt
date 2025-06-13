@@ -8,7 +8,7 @@ import { Button } from './ui/button';
 import { ArrowLeft, Save, Loader2, Eye, Code, Smartphone, Tablet, Monitor } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner'; // Assumindo que você usa sonner para toasts
 
 interface LandingPageData {
   id: string;
@@ -29,6 +29,7 @@ const GrapesJsEditor = () => {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [currentDevice, setCurrentDevice] = useState('desktop');
 
+  // Query para buscar os dados da landing page
   const { data: landingPage, isLoading, error } = useQuery<LandingPageData>({
     queryKey: ['landingpage', id],
     queryFn: async () => {
@@ -44,6 +45,7 @@ const GrapesJsEditor = () => {
     retryDelay: 1000,
   });
 
+  // Mutation para salvar as alterações
   const mutation = useMutation({
     mutationFn: async (data: { html: string; css: string }) => {
       if (!id) throw new Error("No ID provided");
@@ -67,6 +69,7 @@ const GrapesJsEditor = () => {
     },
   });
 
+  // Inicialização do editor GrapesJS
   useEffect(() => {
     if (!editorRef.current) return;
 
@@ -76,6 +79,8 @@ const GrapesJsEditor = () => {
       multiUpload: true,
       autoAdd: 1,
       headers: {
+        // Adicione headers de autenticação se necessário
+        // 'Authorization': `Bearer ${token}`,
       },
     };
 
@@ -84,7 +89,7 @@ const GrapesJsEditor = () => {
       fromElement: false,
       height: 'calc(100vh - 120px)',
       width: 'auto',
-      storageManager: false, 
+      storageManager: false, // Desabilitar storage automático para controle manual
       plugins: [gjsPresetWebpage],
       pluginsOpts: {
         [gjsPresetWebpage]: {
@@ -199,6 +204,7 @@ const GrapesJsEditor = () => {
       }
     });
 
+    // Comandos customizados
     gjsEditor.Commands.add('set-device-desktop', {
       run: (editor) => editor.setDevice('Desktop')
     });
@@ -209,10 +215,13 @@ const GrapesJsEditor = () => {
       run: (editor) => editor.setDevice('Mobile portrait')
     });
 
+    // Event listeners
     gjsEditor.on('component:selected', () => {
+      // Lógica quando um componente é selecionado
     });
 
     gjsEditor.on('component:deselected', () => {
+      // Lógica quando um componente é desselecionado
     });
 
     setEditor(gjsEditor);
@@ -225,6 +234,7 @@ const GrapesJsEditor = () => {
     };
   }, []);
 
+  // Carregar dados da landing page no editor
   useEffect(() => {
     if (editor && landingPage) {
       try {
@@ -237,6 +247,7 @@ const GrapesJsEditor = () => {
     }
   }, [editor, landingPage]);
 
+  // Função para salvar
   const handleSave = useCallback(async () => {
     if (!editor) return;
 
@@ -252,6 +263,7 @@ const GrapesJsEditor = () => {
     }
   }, [editor, mutation]);
 
+  // Função para alternar preview
   const togglePreview = useCallback(() => {
     if (!editor) return;
     
@@ -263,6 +275,7 @@ const GrapesJsEditor = () => {
     setIsPreviewMode(!isPreviewMode);
   }, [editor, isPreviewMode]);
 
+  // Função para alterar dispositivo
   const handleDeviceChange = useCallback((device: string) => {
     if (!editor) return;
     
@@ -280,6 +293,7 @@ const GrapesJsEditor = () => {
     }
   }, [editor]);
 
+  // Auto-save (opcional)
   useEffect(() => {
     if (!editor) return;
 
@@ -287,7 +301,7 @@ const GrapesJsEditor = () => {
       if (editor.getDirtyCount() > 0) {
         handleSave();
       }
-    }, 30000); 
+    }, 30000); // Auto-save a cada 30 segundos
 
     return () => clearInterval(autoSaveInterval);
   }, [editor, handleSave]);
@@ -317,6 +331,7 @@ const GrapesJsEditor = () => {
 
   return (
     <div className="h-screen flex flex-col">
+      {/* Header */}
       <div className="flex justify-between items-center p-3 bg-white dark:bg-gray-900 border-b shadow-sm">
         <div className="flex items-center space-x-4">
           <Button variant="ghost" onClick={() => navigate('/landingpages')}>
@@ -327,6 +342,7 @@ const GrapesJsEditor = () => {
           </h1>
         </div>
 
+        {/* Device Controls */}
         <div className="flex items-center space-x-2">
           <div className="flex border rounded-lg p-1">
             <Button
@@ -368,13 +384,16 @@ const GrapesJsEditor = () => {
         </div>
       </div>
 
+      {/* Editor Container */}
       <div className="flex-1 flex">
         <div className="flex-1">
           <div ref={editorRef} className="h-full" />
         </div>
 
+        {/* Right Panel */}
         <div className="panel__right w-80 border-l bg-white dark:bg-gray-900">
           <div className="panel__switcher border-b p-2">
+            {/* Os botões do painel serão renderizados aqui pelo GrapesJS */}
           </div>
         </div>
       </div>
