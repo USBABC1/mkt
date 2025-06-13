@@ -91,3 +91,4 @@ BEGIN
     END IF;
 END
 $$;
+ALTER TABLE "landing_pages" ADD COLUMN "generation_options" jsonb;
