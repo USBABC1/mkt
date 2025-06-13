@@ -1,7 +1,7 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 // Alterado para importar o BadgeAlert
 import { Terminal, BadgeAlert } from "lucide-react"
-
+import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
