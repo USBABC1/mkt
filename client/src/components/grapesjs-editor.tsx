@@ -1,89 +1,114 @@
 // client/src/components/grapesjs-editor.tsx
-import React, { useEffect, useRef } from 'react';
-import grapesjs, { Editor } from 'grapesjs';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import grapesjs, { type Editor } from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
-import grapesjsPresetWebpage from 'grapesjs-preset-webpage';
-import { useToast } from '@/hooks/use-toast';
+import gjsPresetWebpage from 'grapesjs-preset-webpage';
+import { API_URL } from '@/lib/api';
+import { toast } from '@/hooks/use-toast';
 
-interface GrapesJsEditorProps {
-  initialData?: { html: string, css: string };
-  onSave: (data: { html: string, css: string }) => void;
-  onBack: () => void;
+// Tipagem para a referência do editor, permitindo que o componente pai chame a função getContent
+export interface GrapesJSEditorRef {
+  getContent: () => {
+    html: string;
+    css: string;
+    components: any;
+    styles: any;
+  };
+  loadContent: (html: string) => void;
 }
 
-const GrapesJsEditor: React.FC<GrapesJsEditorProps> = ({ initialData, onSave, onBack }) => {
-  const editorContainerRef = useRef<HTMLDivElement>(null);
-  const editorInstanceRef = useRef<Editor | null>(null);
-  const { toast } = useToast();
+interface GrapesJSEditorProps {
+  initialData?: {
+    html?: string;
+    css?: string;
+    components?: any;
+    styles?: any;
+  } | null;
+  onSave?: (data: any) => void;
+  landingPageId: number;
+}
 
-  useEffect(() => {
-    if (editorContainerRef.current && !editorInstanceRef.current) {
-      const editor = grapesjs.init({
-        container: editorContainerRef.current,
-        fromElement: false,
-        height: '100%',
-        width: 'auto',
-        storageManager: false, // Desabilitamos o storage local para usar o nosso
-        plugins: [grapesjsPresetWebpage],
-        pluginsOpts: {
-          [grapesjsPresetWebpage as any]: {
-            // opções do preset
-          },
-        },
-        assetManager: {
-            upload: '/api/assets/lp-upload', // Endpoint para upload de imagens
-            uploadName: 'files',
-        },
-        canvas: {
-          // Assegura que estilos globais sejam aplicados no iframe do editor
-          styles: ['/src/index.css'],
+const GrapesJSEditor = forwardRef<GrapesJSEditorRef, GrapesJSEditorProps>(
+  ({ initialData, landingPageId }, ref) => {
+    const editorEl = useRef<HTMLDivElement>(null);
+    const [editor, setEditor] = useState<Editor | null>(null);
+
+    // Expõe a função `getContent` para o componente pai através da ref
+    useImperativeHandle(ref, () => ({
+      getContent: () => {
+        if (!editor) {
+          return { html: '', css: '', components: [], styles: [] };
         }
-      });
-      
-      // Adiciona o botão de Voltar
-      editor.Panels.addButton('options', {
-        id: 'back-button',
-        className: 'fa fa-arrow-left',
-        command: () => onBack(),
-        attributes: { title: 'Voltar' }
-      });
-      
-      // Adiciona o botão de Salvar
-      editor.Panels.addButton('options', {
-        id: 'save-db',
-        className: 'fa fa-floppy-o',
-        command: () => {
-          const html = editor.getHtml();
-          const css = editor.getCss();
-          onSave({ html, css });
-        },
-        attributes: { title: 'Salvar' }
-      });
+        return {
+          html: editor.getHtml(),
+          css: editor.getCss(),
+          components: editor.getComponents(),
+          styles: editor.getStyle(),
+        };
+      },
+      loadContent: (html: string) => {
+        editor?.setComponents(html);
+      }
+    }));
 
-      // Carrega os dados iniciais se existirem
-      if (initialData?.html) {
-        editor.setComponents(initialData.html);
-        editor.setStyle(initialData.css || '');
-      } else {
-        editor.setComponents('<div><h1>Sua Landing Page Começa Aqui!</h1></div>');
+    useEffect(() => {
+      if (!editor && editorEl.current) {
+        const e = grapesjs.init({
+          container: editorEl.current,
+          fromElement: true,
+          height: 'calc(100vh - 120px)',
+          width: 'auto',
+          storageManager: false, // Desabilitamos o storageManager padrão para usar o nosso
+          plugins: [gjsPresetWebpage],
+          pluginsOpts: {
+            [gjsPresetWebpage]: {
+              // Opções do preset
+            },
+          },
+          // Configuração do Asset Manager para upload de imagens
+          assetManager: {
+            assets: [],
+            upload: `${API_URL}/assets/lp-upload`, // Endpoint da nossa API para upload
+            uploadName: 'files',
+            params: {
+              // landingPageId: landingPageId // Se quiser associar o upload a uma LP específica
+            },
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          },
+        });
+        
+        // Carrega os dados iniciais quando o editor estiver pronto
+        e.on('load', () => {
+          try {
+            if (initialData?.components) {
+              e.setComponents(JSON.parse(JSON.stringify(initialData.components)));
+              e.setStyle(JSON.parse(JSON.stringify(initialData.styles)));
+            } else if (initialData?.html) {
+              e.setComponents(initialData.html);
+            }
+          } catch(err) {
+            console.error("Erro ao carregar dados no GrapesJS: ", err);
+            toast({
+              title: "Erro ao carregar editor",
+              description: "O conteúdo da página pode não ter sido carregado corretamente.",
+              variant: "destructive"
+            });
+          }
+        });
+
+        setEditor(e);
       }
 
-      editorInstanceRef.current = editor;
-    }
+      return () => {
+        editor?.destroy();
+      };
+    }, [editor, initialData, landingPageId]);
 
-    return () => {
-      if (editorInstanceRef.current) {
-        editorInstanceRef.current.destroy();
-        editorInstanceRef.current = null;
-      }
-    };
-  }, [initialData, onSave, onBack, toast]);
+    return <div ref={editorEl} className="gjs-editor-wrapper" />;
+  }
+);
 
-  return (
-    <div className="h-screen w-full">
-      <div ref={editorContainerRef} className="h-full w-full" />
-    </div>
-  );
-};
-
-export default GrapesJsEditor;
+GrapesJSEditor.displayName = 'GrapesJSEditor';
+export default GrapesJSEditor;
