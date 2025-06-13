@@ -1,75 +1,47 @@
-// vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+// server/vite.ts
+import type { Express } from "express";
+import express from "express";
 import path from "path";
-import { fileURLToPath } from 'node:url';
+import fs from "fs";
 
-export default defineConfig(({ command, mode }) => {
-  const plugins = [
-    react(),
-  ];
-  
-  if (mode !== "production" && process.env.REPL_ID) {
-    import("@replit/vite-plugin-cartographer")
-      .then(module => {
-        if (module && module.cartographer) {
-          plugins.push(module.cartographer());
+export const log = (msg: string, ctx: string) => {
+    console.log(`${new Date().toLocaleTimeString()} [${ctx}] ${msg}`);
+};
+
+// Esta função não foi alterada, apenas incluída para contexto
+export async function setupVite(app: Express, server: import('http').Server) {
+    const { createViteServer } = await import('vite');
+    const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa'
+    });
+    app.use(vite.middlewares);
+}
+
+/**
+ * ✅ CORREÇÃO: A maneira como os ficheiros estáticos são servidos foi ajustada.
+ * Esta configuração garante que o servidor saiba exatamente onde encontrar
+ * a pasta 'assets' e como servir os seus ficheiros (CSS, JS) corretamente,
+ * enquanto ainda serve o index.html para todas as outras rotas da aplicação.
+ */
+export function serveStatic(app: Express) {
+    const frontendPath = path.resolve(process.cwd(), "dist/public");
+    log(`[StaticServing] Servindo assets do frontend de: ${frontendPath}`, 'serveStatic');
+    
+    // Serve especificamente os ficheiros dentro da pasta /assets quando a URL pedir por /assets
+    app.use('/assets', express.static(path.resolve(frontendPath, 'assets')));
+    
+    // Serve outros ficheiros estáticos da raiz (como favicon.ico, etc.)
+    app.use(express.static(frontendPath));
+
+    // Fallback para SPA: Para qualquer outra requisição que não seja um ficheiro, serve o index.html
+    // Isso permite que o roteamento do React (wouter) funcione.
+    app.get('*', (req, res) => {
+        const indexPath = path.resolve(frontendPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+            res.sendFile(indexPath);
         } else {
-          console.warn("@replit/vite-plugin-cartographer could not be loaded as expected.");
+            res.status(404).send('Página principal não encontrada.');
         }
-      })
-      .catch(e => console.warn("@replit/vite-plugin-cartographer not found or failed to load, skipping.", e));
-  }
-  
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  
-  return {
-    plugins: plugins,
-    define: {
-      'import.meta.env.VITE_FORCE_AUTH_BYPASS': JSON.stringify(process.env.VITE_FORCE_AUTH_BYPASS || process.env.FORCE_AUTH_BYPASS || 'false'),
-      'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || process.env.APP_BASE_URL || ''),
-      'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || ''),
-    },
-    resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "client", "src"),
-        "@shared": path.resolve(__dirname, "shared"),
-        "@assets": path.resolve(__dirname, "attached_assets"), 
-        "@/types": path.resolve(__dirname, "client", "src", "types"),
-        "@/components/flow": path.resolve(__dirname, "client", "src", "components", "flow"),
-      },
-    },
-    root: path.resolve(__dirname, "client"),
-    build: {
-      outDir: path.resolve(__dirname, "dist/public"),
-      emptyOutDir: true,
-      // Remove the external configuration - let Vite handle bundling
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            // Split large dependencies into separate chunks
-            'grapesjs': ['@grapesjs/studio-sdk'],
-            'grapesjs-plugins': ['@grapesjs/studio-sdk-plugins'],
-          }
-        }
-      },
-    },
-    server: { 
-      port: 3000, 
-      host: '0.0.0.0',
-      allowedHosts: [
-        'localhost', '127.0.0.1', '0.0.0.0',
-        'work-1-cixzsejsspdqlyvw.prod-runtime.all-hands.dev',
-        'work-2-cixzsejsspdqlyvw.prod-runtime.all-hands.dev',
-        '.all-hands.dev', '.prod-runtime.all-hands.dev'
-      ],
-    },
-    // Help Vite handle the GrapesJS packages
-    optimizeDeps: {
-      include: [
-        '@grapesjs/studio-sdk',
-        '@grapesjs/studio-sdk-plugins'
-      ],
-    },
-  };
-});
+    });
+}
