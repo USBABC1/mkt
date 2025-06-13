@@ -13,6 +13,7 @@ import { Link, useLocation } from "wouter";
 import {
   Plus, Search, Filter as FilterIcon, Edit, Trash2, MoreHorizontal, Loader2, AlertTriangle, CalendarCheck, Rocket
 } from 'lucide-react';
+import { cva } from "class-variance-authority";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
