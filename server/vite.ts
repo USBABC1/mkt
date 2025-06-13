@@ -1,14 +1,13 @@
-// server/vite.ts
 import type { Express } from "express";
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { createServer } from "http";
 
 export const log = (msg: string, ctx: string) => {
     console.log(`${new Date().toLocaleTimeString()} [${ctx}] ${msg}`);
 };
 
-// Esta função não foi alterada, apenas incluída para contexto
 export async function setupVite(app: Express, server: import('http').Server) {
     const { createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -19,29 +18,29 @@ export async function setupVite(app: Express, server: import('http').Server) {
 }
 
 /**
- * ✅ CORREÇÃO: A maneira como os ficheiros estáticos são servidos foi ajustada.
- * Esta configuração garante que o servidor saiba exatamente onde encontrar
- * a pasta 'assets' e como servir os seus ficheiros (CSS, JS) corretamente,
- * enquanto ainda serve o index.html para todas as outras rotas da aplicação.
+ * ✅ CORREÇÃO FINAL: Configuração robusta para servir uma Single-Page Application (SPA).
+ * Esta função garante que todos os ficheiros estáticos (CSS, JS, imagens) sejam servidos
+ * corretamente e que o index.html seja enviado para todas as outras rotas,
+ * permitindo que o roteamento do React funcione em produção.
  */
 export function serveStatic(app: Express) {
     const frontendPath = path.resolve(process.cwd(), "dist/public");
     log(`[StaticServing] Servindo assets do frontend de: ${frontendPath}`, 'serveStatic');
     
-    // Serve especificamente os ficheiros dentro da pasta /assets quando a URL pedir por /assets
-    app.use('/assets', express.static(path.resolve(frontendPath, 'assets')));
-    
-    // Serve outros ficheiros estáticos da raiz (como favicon.ico, etc.)
+    // 1. Serve todos os ficheiros estáticos (com os seus MIME types corretos)
+    // a partir da pasta de build do frontend.
     app.use(express.static(frontendPath));
 
-    // Fallback para SPA: Para qualquer outra requisição que não seja um ficheiro, serve o index.html
-    // Isso permite que o roteamento do React (wouter) funcione.
-    app.get('*', (req, res) => {
+    // 2. Fallback para a SPA: Para qualquer outra rota GET que não seja uma API,
+    // envia o ficheiro principal index.html.
+    // Isto permite que o React Router (wouter) assuma o controlo no navegador.
+    app.get(/^(?!\/api).*/, (req, res) => {
         const indexPath = path.resolve(frontendPath, 'index.html');
         if (fs.existsSync(indexPath)) {
             res.sendFile(indexPath);
         } else {
-            res.status(404).send('Página principal não encontrada.');
+            // Esta mensagem aparecerá se o build falhar em criar o index.html
+            res.status(404).send('Ficheiro principal da aplicação (index.html) não foi encontrado no servidor.');
         }
     });
 }
