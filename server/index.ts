@@ -4,38 +4,47 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
 
-// Importando TODOS os nossos módulos de rotas
+// Importando nossos módulos de rotas
 import authRoutes from './routes/auth.routes';
 import landingPageRoutes from './routes/landingpage.routes';
 import campaignRoutes from './routes/campaign.routes';
 import assetRoutes from './routes/asset.routes';
-import chatRoutes from './routes/chat.routes';         // <-- NOVO
-import whatsappRoutes from './routes/whatsapp.routes'; // <-- NOVO
-import coreRoutes from './routes/core.routes';         // <-- NOVO
+import chatRoutes from './routes/chat.routes';
+import whatsappRoutes from './routes/whatsapp.routes';
+import coreRoutes from './routes/core.routes';
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// O caminho correto para a pasta 'public' que o Vite cria dentro de 'dist'
+const publicPath = path.join(__dirname, 'public');
 
 // --- MIDDLEWARES GLOBAIS ---
 app.use(cors()); 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// --- REGISTRO DAS ROTAS MODULARES ---
-// A ordem aqui não importa funcionalmente, mas é bom manter organizado.
+// 1. Servir todos os arquivos estáticos (CSS, JS, imagens) da pasta public
+app.use(express.static(publicPath));
+
+// 2. REGISTRO DAS ROTAS DA API
+// Todas as requisições para /api/... serão tratadas pelos nossos roteadores
 app.use('/api', authRoutes);
-app.use('/api', coreRoutes);          // <-- NOVO
+app.use('/api', coreRoutes);
 app.use('/api', campaignRoutes);
 app.use('/api', landingPageRoutes);
 app.use('/api', assetRoutes);
-app.use('/api', chatRoutes);          // <-- NOVO
-app.use('/api', whatsappRoutes);      // <-- NOVO
+app.use('/api', chatRoutes);
+app.use('/api', whatsappRoutes);
 
-// --- ROTA "CATCH-ALL" ---
+
+// 3. ROTA "CATCH-ALL" PARA O APP REACT
+// Qualquer outra requisição GET que não seja para um arquivo estático ou para a API,
+// deve servir o index.html principal. Isso permite que o React Router funcione.
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  res.sendFile(path.join(publicPath, 'index.html'));
 });
+
 
 // --- MIDDLEWARES DE TRATAMENTO DE ERRO ---
 const handleZodError: ErrorRequestHandler = (err, req, res, next) => {
@@ -54,6 +63,7 @@ const handleError: ErrorRequestHandler = (err, req, res, next) => {
 
 app.use(handleZodError);
 app.use(handleError);
+
 
 // --- INICIALIZAÇÃO DO SERVIDOR ---
 const port = process.env.PORT || 4001;
