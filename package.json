@@ -78,6 +78,7 @@
     "googleapis": "^140.0.1",
     "grapesjs": "^0.21.13",
     "grapesjs-preset-webpage": "^1.0.3",
+    "hono": "^4.7.11",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",
