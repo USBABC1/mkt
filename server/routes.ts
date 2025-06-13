@@ -165,72 +165,22 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
 
     // Rota de Landing Pages
     apiRouter.get('/landingpages', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getLandingPages(req.user!.id)); } catch (e) { next(e); }});
-    
-    // ✅ ROTA CORRIGIDA: Recebe todos os dados, incluindo generationOptions, do frontend
-    apiRouter.post('/landingpages', async (req: AuthenticatedRequest, res, next) => { 
-      try { 
-        const { name } = req.body;
-        const slugBase = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        const finalSlug = await storage.generateUniqueSlug(slugBase);
-        
-        // O corpo do request já deve conter todos os campos necessários
-        const lpData = schemaShared.insertLandingPageSchema.parse({
-          ...req.body,
-          slug: finalSlug,
-        });
-
-        const newLp = await storage.createLandingPage(lpData, req.user!.id);
-        res.status(201).json(newLp);
-      } catch(e){ 
-        next(e); 
-      }
-    });
-    
-    apiRouter.post('/landingpages/preview-advanced', async (req: AuthenticatedRequest, res, next) => {
-        try {
-            const { prompt, reference, options } = req.body;
-            if (!prompt) return res.status(400).json({ error: 'O prompt é obrigatório.' });
-            const generatedHtml = await geminiService.createAdvancedLandingPage(prompt, options || {}, reference);
-            res.status(200).json({ htmlContent: generatedHtml });
-        } catch (e) {
-            next(e);
-        }
-    });
-    
+    apiRouter.post('/landingpages', async (req: AuthenticatedRequest, res, next) => {  try {  const { name } = req.body; const slugBase = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''); const finalSlug = await storage.generateUniqueSlug(slugBase); const lpData = schemaShared.insertLandingPageSchema.parse({ ...req.body, slug: finalSlug, }); const newLp = await storage.createLandingPage(lpData, req.user!.id); res.status(201).json(newLp); } catch(e){  next(e);  } });
+    apiRouter.post('/landingpages/preview-advanced', async (req: AuthenticatedRequest, res, next) => { try { const { prompt, reference, options } = req.body; if (!prompt) return res.status(400).json({ error: 'O prompt é obrigatório.' }); const generatedHtml = await geminiService.createAdvancedLandingPage(prompt, options || {}, reference); res.status(200).json({ htmlContent: generatedHtml }); } catch (e) { next(e); } });
     apiRouter.get('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { const lp = await storage.getLandingPage(parseInt(req.params.id), req.user!.id); if (!lp) return res.status(404).json({ error: 'Página não encontrada.' }); res.json(lp); } catch (e) { next(e); } });
     apiRouter.put('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { const lpData = schemaShared.insertLandingPageSchema.partial().parse(req.body); const updated = await storage.updateLandingPage(parseInt(req.params.id), lpData, req.user!.id); if (!updated) return res.status(404).json({ error: "Página não encontrada." }); res.json(updated); } catch(e){ next(e); }});
     apiRouter.delete('/landingpages/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteLandingPage(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch(e){ next(e); }});
-    
-    // ✅ ROTA CORRIGIDA: Não depende mais de um ID, recebe o prompt e as opções do corpo da requisição.
-    apiRouter.post('/landingpages/generate-variations', async (req: AuthenticatedRequest, res, next) => {
-        try {
-            const { prompt, count, options, reference } = req.body;
-            if (!prompt) {
-                return res.status(400).json({ error: 'O prompt é obrigatório para gerar variações.' });
-            }
-            const variations = await geminiService.generateVariations(prompt, count || 2, options || {}, reference);
-            res.json({ variations });
-        } catch (e) {
-            next(e);
-        }
-    });
-    
-    // ✅ ROTA CORRIGIDA: Não depende mais de um ID, recebe o HTML e as metas de otimização do corpo.
-    apiRouter.post('/landingpages/optimize', async (req: AuthenticatedRequest, res, next) => {
-        try {
-            const { html, goals } = req.body;
-            if (!html) {
-                return res.status(400).json({ error: 'O conteúdo HTML é obrigatório para otimização.' });
-            }
-            const optimizedHtml = await geminiService.optimizeLandingPage(html, goals);
-            res.json({ htmlContent: optimizedHtml });
-        } catch (e) {
-            next(e);
-        }
-    });
-
-    // Rotas de Assets para Landing Pages (GrapesJS)
+    apiRouter.post('/landingpages/generate-variations', async (req: AuthenticatedRequest, res, next) => { try { const { prompt, count, options, reference } = req.body; if (!prompt) return res.status(400).json({ error: 'O prompt é obrigatório para gerar variações.' }); const variations = await geminiService.generateVariations(prompt, count || 2, options || {}, reference); res.json({ variations }); } catch (e) { next(e); }});
+    apiRouter.post('/landingpages/optimize', async (req: AuthenticatedRequest, res, next) => { try { const { html, goals } = req.body; if (!html) return res.status(400).json({ error: 'O conteúdo HTML é obrigatório para otimização.' }); const optimizedHtml = await geminiService.optimizeLandingPage(html, goals); res.json({ htmlContent: optimizedHtml }); } catch (e) { next(e); }});
     apiRouter.post('/assets/lp-upload', lpAssetUpload.array('files'), (req: AuthenticatedRequest, res, next) => { try { if (!req.files || !Array.isArray(req.files) || req.files.length === 0) return res.status(400).json({ error: "Nenhum arquivo enviado." }); const urls = req.files.map(file => `${APP_BASE_URL}/${UPLOADS_DIR_NAME}/lp-assets/${file.filename}`); res.status(200).json(urls); } catch(e){ next(e); }});
+
+    // ✅ ROTAS DE FUNIL ADICIONADAS
+    apiRouter.get('/funnels', async (req: AuthenticatedRequest, res, next) => { try { const campaignIdQuery = req.query.campaignId as string | undefined; const campaignId = campaignIdQuery === 'null' ? null : (campaignIdQuery ? parseInt(campaignIdQuery) : undefined); res.json(await storage.getFunnels(req.user!.id, campaignId)); } catch (e) { next(e); }});
+    apiRouter.get('/funnels/:id', async (req: AuthenticatedRequest, res, next) => { try { const funnel = await storage.getFunnel(parseInt(req.params.id), req.user!.id); if (!funnel) return res.status(404).json({ error: 'Funil não encontrado.'}); res.json(funnel); } catch(e) { next(e); }});
+    apiRouter.post('/funnels', async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertFunnelSchema.parse(req.body); const newFunnel = await storage.createFunnel(data, req.user!.id); res.status(201).json(newFunnel); } catch (e) { next(e); } });
+    apiRouter.put('/funnels/:id', async (req: AuthenticatedRequest, res, next) => { try { const data = schemaShared.insertFunnelSchema.partial().parse(req.body); const updated = await storage.updateFunnel(parseInt(req.params.id), data, req.user!.id); if (!updated) return res.status(404).json({ error: "Funil não encontrado."}); res.json(updated); } catch (e) { next(e); } });
+    apiRouter.delete('/funnels/:id', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteFunnel(parseInt(req.params.id), req.user!.id); res.status(204).send(); } catch (e) { next(e); } });
+    apiRouter.post('/funnels/:funnelId/stages', async (req: AuthenticatedRequest, res, next) => { try { const funnel = await storage.getFunnel(parseInt(req.params.funnelId), req.user!.id); if (!funnel) return res.status(404).json({ error: "Funil não encontrado." }); const data = schemaShared.insertFunnelStageSchema.parse({ ...req.body, funnelId: funnel.id }); const newStage = await storage.createFunnelStage(data); res.status(201).json(newStage); } catch(e) { next(e); }});
 
     // Rotas do MCP (ubie)
     apiRouter.post('/mcp/converse', async (req: AuthenticatedRequest, res, next) => { try { const { message, sessionId, attachmentUrl } = req.body; const payload = await handleMCPConversation(req.user!.id, message, sessionId, attachmentUrl); res.json(payload); } catch(e) { next(e); }});
@@ -242,6 +192,11 @@ async function doRegisterRoutes(app: Express): Promise<HttpServer> {
     apiRouter.get('/chat/sessions/:sessionId/messages', async (req: AuthenticatedRequest, res, next) => { try { res.json(await storage.getChatMessages(parseInt(req.params.sessionId), req.user!.id)); } catch(e){ next(e); }});
     apiRouter.put('/chat/sessions/:sessionId/title', async (req: AuthenticatedRequest, res, next) => { try { const updated = await storage.updateChatSessionTitle(parseInt(req.params.sessionId), req.user!.id, req.body.title); res.json(updated); } catch(e){ next(e); }});
     apiRouter.delete('/chat/sessions/:sessionId', async (req: AuthenticatedRequest, res, next) => { try { await storage.deleteChatSession(parseInt(req.params.sessionId), req.user!.id); res.status(204).send(); } catch(e){ next(e); }});
+
+    // ✅ ROTAS DE ALERTA CORRIGIDAS/ADICIONADAS
+    apiRouter.get('/alerts', async (req: AuthenticatedRequest, res, next) => { try { const onlyUnread = req.query.unread === 'true'; res.json(await storage.getAlerts(req.user!.id, onlyUnread)); } catch (e) { next(e); } });
+    apiRouter.put('/alerts/:id/read', async (req: AuthenticatedRequest, res, next) => { try { const alert = await storage.markAlertAsRead(parseInt(req.params.id), req.user!.id); res.json(alert); } catch (e) { next(e); } });
+    apiRouter.patch('/alerts/read-all', async (req: AuthenticatedRequest, res, next) => { try { await storage.markAllAlertsAsRead(req.user!.id); res.status(204).send(); } catch (e) { next(e); } });
 
     // Rotas do WhatsApp
     apiRouter.get('/whatsapp/status', (req: AuthenticatedRequest, res) => res.json(WhatsappConnectionService.getStatus(req.user!.id)));
