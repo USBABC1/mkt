@@ -1,114 +1,97 @@
 // client/src/components/grapesjs-editor.tsx
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import grapesjs, { type Editor } from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
 import gjsPresetWebpage from 'grapesjs-preset-webpage';
 import { API_URL } from '@/lib/api';
-import { toast } from '@/hooks/use-toast';
+import { Button } from './ui/button';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 
-// Tipagem para a referência do editor, permitindo que o componente pai chame a função getContent
-export interface GrapesJSEditorRef {
-  getContent: () => {
-    html: string;
-    css: string;
-    components: any;
-    styles: any;
-  };
-  loadContent: (html: string) => void;
-}
-
+// Props atualizadas para receber os handlers onSave e onBack
 interface GrapesJSEditorProps {
-  initialData?: {
+  initialData: {
     html?: string;
     css?: string;
     components?: any;
     styles?: any;
-  } | null;
-  onSave?: (data: any) => void;
-  landingPageId: number;
+  };
+  onSave: (data: { html: string; css: string; components: any; styles: any; }) => void;
+  onBack: () => void;
+  isSaving?: boolean;
 }
 
-const GrapesJSEditor = forwardRef<GrapesJSEditorRef, GrapesJSEditorProps>(
-  ({ initialData, landingPageId }, ref) => {
-    const editorEl = useRef<HTMLDivElement>(null);
-    const [editor, setEditor] = useState<Editor | null>(null);
+export default function GrapesJSEditor({ initialData, onSave, onBack, isSaving }: GrapesJSEditorProps) {
+  const editorEl = useRef<HTMLDivElement>(null);
+  const editorInstance = useRef<Editor | null>(null);
 
-    // Expõe a função `getContent` para o componente pai através da ref
-    useImperativeHandle(ref, () => ({
-      getContent: () => {
-        if (!editor) {
-          return { html: '', css: '', components: [], styles: [] };
-        }
-        return {
-          html: editor.getHtml(),
-          css: editor.getCss(),
-          components: editor.getComponents(),
-          styles: editor.getStyle(),
-        };
-      },
-      loadContent: (html: string) => {
-        editor?.setComponents(html);
-      }
-    }));
+  const handleSaveClick = () => {
+    if (editorInstance.current) {
+      onSave({
+        html: editorInstance.current.getHtml(),
+        css: editorInstance.current.getCss(),
+        components: editorInstance.current.getComponents(),
+        styles: editorInstance.current.getStyle(),
+      });
+    }
+  };
 
-    useEffect(() => {
-      if (!editor && editorEl.current) {
-        const e = grapesjs.init({
-          container: editorEl.current,
-          fromElement: true,
-          height: 'calc(100vh - 120px)',
-          width: 'auto',
-          storageManager: false, // Desabilitamos o storageManager padrão para usar o nosso
-          plugins: [gjsPresetWebpage],
-          pluginsOpts: {
-            [gjsPresetWebpage]: {
-              // Opções do preset
-            },
-          },
-          // Configuração do Asset Manager para upload de imagens
-          assetManager: {
+  useEffect(() => {
+    if (editorInstance.current) {
+        return;
+    }
+    if (editorEl.current) {
+      const editor = grapesjs.init({
+        container: editorEl.current,
+        fromElement: false,
+        height: 'calc(100vh - 70px)', // Ajusta altura para a barra de botões
+        width: 'auto',
+        storageManager: false,
+        plugins: [gjsPresetWebpage],
+        pluginsOpts: {
+          [gjsPresetWebpage]: {},
+        },
+        assetManager: {
             assets: [],
-            upload: `${API_URL}/assets/lp-upload`, // Endpoint da nossa API para upload
+            upload: `${API_URL}/assets/lp-upload`,
             uploadName: 'files',
-            params: {
-              // landingPageId: landingPageId // Se quiser associar o upload a uma LP específica
-            },
             headers: {
               Authorization: `Bearer ${localStorage.getItem('token')}`,
             },
-          },
-        });
-        
-        // Carrega os dados iniciais quando o editor estiver pronto
-        e.on('load', () => {
-          try {
-            if (initialData?.components) {
-              e.setComponents(JSON.parse(JSON.stringify(initialData.components)));
-              e.setStyle(JSON.parse(JSON.stringify(initialData.styles)));
-            } else if (initialData?.html) {
-              e.setComponents(initialData.html);
-            }
-          } catch(err) {
-            console.error("Erro ao carregar dados no GrapesJS: ", err);
-            toast({
-              title: "Erro ao carregar editor",
-              description: "O conteúdo da página pode não ter sido carregado corretamente.",
-              variant: "destructive"
-            });
-          }
-        });
-
-        setEditor(e);
+        },
+      });
+      
+      // Carrega dados iniciais
+      if (initialData?.components) {
+        editor.setComponents(JSON.parse(JSON.stringify(initialData.components)));
+        editor.setStyle(JSON.parse(JSON.stringify(initialData.styles)));
+      } else if (initialData?.html) {
+        editor.setComponents(initialData.html);
       }
+      
+      editorInstance.current = editor;
+    }
 
-      return () => {
-        editor?.destroy();
-      };
-    }, [editor, initialData, landingPageId]);
+    return () => {
+      editorInstance.current?.destroy();
+      editorInstance.current = null;
+    };
+  }, [initialData]);
 
-    return <div ref={editorEl} className="gjs-editor-wrapper" />;
-  }
-);
-
-GrapesJSEditor.displayName = 'GrapesJSEditor';
-export default GrapesJSEditor;
+  return (
+    <div className='grapes-editor-container relative'>
+      {/* Barra de Ações no topo do editor */}
+      <div className="absolute top-0 left-0 w-full bg-background/80 backdrop-blur-sm p-2 flex justify-between items-center z-10 border-b">
+        <Button variant="outline" onClick={onBack}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar
+        </Button>
+        <h3 className='text-lg font-semibold'>Editor Visual</h3>
+        <Button onClick={handleSaveClick} disabled={isSaving}>
+          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          Salvar Alterações
+        </Button>
+      </div>
+      <div ref={editorEl} className="gjs-editor-wrapper pt-[60px]" />
+    </div>
+  );
+}
