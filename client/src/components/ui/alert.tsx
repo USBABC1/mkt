@@ -1,6 +1,7 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
-import { Terminal, AlertCircle } from "lucide-react" // Usando AlertCircle em vez de AlertTriangle
+import { AlertTriangle, CheckCircle, Info, XCircle } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
@@ -11,6 +12,12 @@ const alertVariants = cva(
         default: "bg-background text-foreground",
         destructive:
           "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
+        warning:
+          "border-yellow-500/50 text-yellow-600 dark:border-yellow-500 [&>svg]:text-yellow-600",
+        success:
+          "border-green-500/50 text-green-600 dark:border-green-500 [&>svg]:text-green-600",
+        info:
+          "border-blue-500/50 text-blue-600 dark:border-blue-500 [&>svg]:text-blue-600",
       },
     },
     defaultVariants: {
@@ -56,4 +63,20 @@ const AlertDescription = React.forwardRef<
 ))
 AlertDescription.displayName = "AlertDescription"
 
-export { Alert, AlertTitle, AlertDescription }
+// Ícones padrão para cada variante
+const AlertIcon = ({ variant }: { variant?: "default" | "destructive" | "warning" | "success" | "info" }) => {
+  switch (variant) {
+    case "destructive":
+      return <XCircle className="h-4 w-4" />
+    case "warning":
+      return <AlertTriangle className="h-4 w-4" />
+    case "success":
+      return <CheckCircle className="h-4 w-4" />
+    case "info":
+      return <Info className="h-4 w-4" />
+    default:
+      return <Info className="h-4 w-4" />
+  }
+}
+
+export { Alert, AlertTitle, AlertDescription, AlertIcon }
