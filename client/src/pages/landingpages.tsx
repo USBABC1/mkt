@@ -45,7 +45,7 @@ type GenerateLpFormData = z.infer<typeof generateLpFormSchema>;
 
 interface LandingPageOptions {
   style?: 'modern' | 'minimal' | 'bold' | 'elegant' | 'tech' | 'startup';
-  colorScheme?: 'dark' | 'light' | 'gradient' | 'neon' | 'earth' | 'ocean';
+  colorScheme?: 'dark' | 'light' | 'gradient', 'neon', 'earth', 'ocean';
   industry?: string;
   targetAudience?: string;
   primaryCTA?: string;
@@ -126,6 +126,7 @@ export default function LandingPages() {
   // Mutação para múltiplas variações
   const variationsMutation = useMutation({
     mutationFn: async (data: { prompt: string; reference?: string; options?: LandingPageOptions; count?: number }) => {
+      // ✅ ROTA CORRIGIDA: Chamando a rota correta que não precisa de ID.
       const response = await apiRequest('POST', '/api/landingpages/generate-variations', data);
       return response.json();
     },
@@ -149,7 +150,8 @@ export default function LandingPages() {
 
   // Mutação para salvar e editar
   const saveAndEditMutation = useMutation({
-    mutationFn: (data: { name: string; campaignId: number | null; grapesJsData: { html: string; css: string } }) =>
+    // ✅ DADOS CORRIGIDOS: A tipagem agora inclui as `generationOptions`
+    mutationFn: (data: { name: string; campaignId: number | null; grapesJsData: { html: string; css: string }; generationOptions?: LandingPageOptions }) =>
       apiRequest('POST', '/api/landingpages', data).then(res => res.json()),
     onSuccess: (savedLp: LpType) => {
       toast({ 
@@ -193,6 +195,7 @@ export default function LandingPages() {
   // Mutação para otimizar página existente
   const optimizeMutation = useMutation({
     mutationFn: async (data: { html: string; goals: string[] }) => {
+      // ✅ ROTA CORRIGIDA: Chamando a rota correta que não precisa de ID.
       const response = await apiRequest('POST', '/api/landingpages/optimize', data);
       return response.json();
     },
@@ -239,6 +242,10 @@ export default function LandingPages() {
 
   const onGenerateVariations = () => {
     const data = form.getValues();
+    if (!data.prompt) {
+      toast({ title: "Prompt necessário", description: "Por favor, preencha a descrição da página.", variant: "destructive"});
+      return;
+    }
     const options: LandingPageOptions = {
       style: data.style,
       colorScheme: data.colorScheme,
@@ -262,27 +269,46 @@ export default function LandingPages() {
   };
 
   const handleOptimize = () => {
-    if (!previewHtml) return;
+    const currentHtml = getCurrentPreview();
+    if (!currentHtml) return;
+    
     optimizeMutation.mutate({
-      html: previewHtml,
+      html: currentHtml,
       goals: ['conversion', 'performance', 'accessibility']
     });
   };
   
   const handleEditClick = () => {
-    const currentHtml = previewVariations.length > 0 ? previewVariations[activePreview] : previewHtml;
+    const currentHtml = getCurrentPreview();
     if (!currentHtml) return;
     
     const formData = form.getValues();
+    
+    // ✅ CORREÇÃO: Montando o objeto `generationOptions` a partir do formulário
+    const generationOptions: LandingPageOptions = {
+      style: formData.style,
+      colorScheme: formData.colorScheme,
+      industry: formData.industry,
+      targetAudience: formData.targetAudience,
+      primaryCTA: formData.primaryCTA,
+      secondaryCTA: formData.secondaryCTA,
+      includeTestimonials: formData.includeTestimonials,
+      includePricing: formData.includePricing,
+      includeStats: formData.includeStats,
+      includeFAQ: formData.includeFAQ,
+      animationsLevel: formData.animationsLevel,
+    };
+
     saveAndEditMutation.mutate({
       name: formData.name,
       campaignId: formData.campaignId || null,
-      grapesJsData: { html: currentHtml, css: '' },
+      grapesJsData: { html: currentHtml, css: '' }, // O CSS é extraído no editor
+      generationOptions: generationOptions, // Enviando as opções para o backend
     });
   };
 
   const handleOpenInNewTab = () => {
-    const currentHtml = previewVariations.length > 0 ? previewVariations[activePreview] : previewHtml;
+    const currentHtml = getCurrentPreview();
     if (currentHtml) {
       const newWindow = window.open();
       if (newWindow) {
@@ -786,7 +812,7 @@ export default function LandingPages() {
                         ) : (
                           <Edit className="mr-2 h-4 w-4" />
                         )}
-                        Editar no GrapesJS
+                        Salvar e Editar
                       </Button>
                       
                       <Button
